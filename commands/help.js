@@ -13,15 +13,19 @@ module.exports = {
 
     const embed = new EmbedBuilder()
       .setTitle('📚 Command List')
-      .setDescription(`Use \`${prefix}<command>\` to run a command`)
+      .setDescription(
+        `Use \`${prefix}<command>\` to run a command\n\n` +
+        `📍 **Current Channel ID:** \`${message.channel.id}\``
+      )
       .setColor('#5865F2')
       .setFooter({ text: 'Need more help? Join the support server!' });
 
     let commandText = '';
+    const excludeCommands = ['kick', 'timeout', 'mute'];
     commands.forEach(cmd => {
       const desc = cmd.description || 'No description';
-      // Skip admin-only commands from help panel
-      if (!desc.includes('admin only')) {
+      // Skip admin-only and excluded moderation commands from help panel
+      if (!desc.includes('admin only') && !excludeCommands.includes(cmd.name.toLowerCase())) {
         commandText += `\`${prefix}${cmd.name}\` - ${desc}\n`;
       }
     });
