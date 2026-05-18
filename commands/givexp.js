@@ -127,12 +127,13 @@ module.exports = {
 
     await message.reply({ embeds: [replyEmbed] });
 
-    // Handle potential level-up
-    if (result.leveledUp) {
-      const member = await message.guild.members.fetch(targetId).catch(() => null);
-      if (member) {
-        await giveLevelRole(member, result.newLevel);
+    // Always assign the correct level role for their final level
+    const member = await message.guild.members.fetch(targetId).catch(() => null);
+    if (member) {
+      await giveLevelRole(member, result.newLevel);
 
+      // Handle level-up announcement
+      if (result.leveledUp) {
         const levelChannel = message.client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
         if (levelChannel) {
           const embed = new EmbedBuilder()
