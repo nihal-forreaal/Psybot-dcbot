@@ -1,0 +1,340 @@
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+
+const levelsPath = path.join(__dirname, '..', 'levels.json');
+const activeGames = new Set();
+const GAMES_CHANNEL_ID = '1506009762901524661';
+
+const LEVEL_ROLE_REWARDS = [
+  { level: 1, name: 'Nobby' },
+  { level: 2, name: 'Normie' },
+  { level: 5, name: 'Rookie' },
+  { level: 10, name: 'Grinder' },
+  { level: 15, name: 'Sweaty' },
+  { level: 20, name: 'Pro' },
+  { level: 30, name: 'Elite' },
+  { level: 35, name: 'Legend' },
+  { level: 40, name: 'Mythic' },
+  { level: 50, name: 'Godmode' },
+];
+
+const TRIVIA_QUESTIONS = [
+  {
+    question: "Which language is primarily used to build modern Discord bots like this one?",
+    options: ["Python", "Java", "JavaScript", "C++"],
+    correctIndex: 2,
+    category: "💻 Technology"
+  },
+  {
+    question: "What is the name of the main protagonist in 'The Legend of Zelda' series?",
+    options: ["Zelda", "Link", "Ganon", "Luigi"],
+    correctIndex: 1,
+    category: "🎮 Gaming"
+  },
+  {
+    question: "Which of the following is NOT a Hogwarts house in Harry Potter?",
+    options: ["Gryffindor", "Hufflepuff", "Slytherin", "Ravenclaw", "Wampus"],
+    correctIndex: 4,
+    category: "🎬 Movies & Books"
+  },
+  {
+    question: "Which company created the popular sandbox game 'Minecraft'?",
+    options: ["Epic Games", "Mojang", "Valve", "Nintendo"],
+    correctIndex: 1,
+    category: "🎮 Gaming"
+  },
+  {
+    question: "What does CPU stand for?",
+    options: ["Computer Processing Unit", "Central Processor Utility", "Central Processing Unit", "Core Power Unit"],
+    correctIndex: 2,
+    category: "💻 Technology"
+  },
+  {
+    question: "In the anime 'Naruto', what is Naruto's signature jutsu?",
+    options: ["Chidori", "Rasengan", "Amaterasu", "Kotoamatsukami"],
+    correctIndex: 1,
+    category: "⛩️ Anime"
+  },
+  {
+    question: "Which social platform was launched by Mark Zuckerberg in 2004?",
+    options: ["Instagram", "Twitter", "Facebook", "TikTok"],
+    correctIndex: 2,
+    category: "💻 Technology"
+  },
+  {
+    question: "In GTA V, who are the three playable main characters?",
+    options: ["Michael, Trevor, Franklin", "Niko, Roman, CJ", "Tommy, Claude, Toni", "Arthur, John, Dutch"],
+    correctIndex: 0,
+    category: "🎮 Gaming"
+  },
+  {
+    question: "What is the capital city of Japan?",
+    options: ["Kyoto", "Osaka", "Tokyo", "Seoul"],
+    correctIndex: 2,
+    category: "🌍 General Knowledge"
+  },
+  {
+    question: "How many bones are there in an adult human body?",
+    options: ["106", "206", "306", "156"],
+    correctIndex: 1,
+    category: "🌍 General Knowledge"
+  },
+  {
+    question: "Which planet is known as the Red Planet?",
+    options: ["Venus", "Mars", "Jupiter", "Saturn"],
+    correctIndex: 1,
+    category: "🌍 General Knowledge"
+  },
+  {
+    question: "What is the highest-grossing film of all time (unadjusted for inflation)?",
+    options: ["Titanic", "Avengers: Endgame", "Avatar", "Star Wars: The Force Awakens"],
+    correctIndex: 2,
+    category: "🎬 Movies & Books"
+  }
+];
+
+function addXP(userId, xpAmount) {
+  try {
+    let levels = {};
+    if (fs.existsSync(levelsPath)) {
+      const content = fs.readFileSync(levelsPath, 'utf8').trim();
+      levels = content ? JSON.parse(content) : {};
+    }
+    if (!levels[userId]) {
+      levels[userId] = { xp: 0, level: 0 };
+    }
+    levels[userId].xp += xpAmount;
+
+    let leveledUp = false;
+    let newLevel = levels[userId].level;
+
+    while (true) {
+      const xpNeeded = levels[userId].level * 600 + 600;
+      if (levels[userId].xp >= xpNeeded) {
+        levels[userId].level += 1;
+        newLevel = levels[userId].level;
+        leveledUp = true;
+      } else {
+        break;
+      }
+    }
+
+    fs.writeFileSync(levelsPath, JSON.stringify(levels, null, 2), 'utf8');
+    return { leveledUp, newLevel };
+  } catch (err) {
+    console.error('Failed to update levels.json:', err);
+    return { leveledUp: false };
+  }
+}
+
+async function giveLevelRole(member, level) {
+  const reward = LEVEL_ROLE_REWARDS.find(r => r.level === level);
+  if (!reward) return;
+
+  try {
+    const roles = await member.guild.roles.fetch();
+    const role = roles.find(r => r.name.toLowerCase() === reward.name.toLowerCase());
+    if (role && !member.roles.cache.has(role.id)) {
+      await member.roles.add(role);
+    }
+  } catch (err) {
+    console.error(`Failed to assign role ${reward.name} on level up:`, err.message);
+  }
+}
+
+async function playTrivia(message, userId) {
+  // Pick a random question
+  const qData = TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)];
+  const labels = ['A', 'B', 'C', 'D', 'E'];
+
+  // Create Options Buttons
+  const optionsRow = new ActionRowBuilder();
+  qData.options.forEach((opt, idx) => {
+    optionsRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`trivia_${idx}`)
+        .setLabel(`${labels[idx]}. ${opt.substring(0, 30)}`)
+        .setStyle(ButtonStyle.Secondary)
+    );
+  });
+
+  const questionEmbed = new EmbedBuilder()
+    .setTitle('🧠 Trivia Time!')
+    .setAuthor({ name: qData.category })
+    .setDescription(`**${qData.question}**\n\n` + qData.options.map((opt, i) => `**${labels[i]}.** ${opt}`).join('\n'))
+    .setColor('#5865F2')
+    .setFooter({ text: 'You have 15 seconds to answer!' });
+
+  const gameMessage = await message.channel.send({ embeds: [questionEmbed], components: [optionsRow] });
+
+  // Collect button click from the same user
+  const filter = i => i.user.id === userId && i.customId.startsWith('trivia_');
+  const collector = gameMessage.createMessageComponentCollector({ filter, time: 15000 });
+
+  let answered = false;
+
+  collector.on('collect', async interaction => {
+    answered = true;
+    const clickedIdx = parseInt(interaction.customId.split('_')[1], 10);
+    const isCorrect = clickedIdx === qData.correctIndex;
+
+    // Build disabled options row with coloring
+    const finalRow = new ActionRowBuilder();
+    qData.options.forEach((opt, idx) => {
+      let style = ButtonStyle.Secondary;
+      if (idx === qData.correctIndex) {
+        style = ButtonStyle.Success; // Green for correct
+      } else if (idx === clickedIdx && !isCorrect) {
+        style = ButtonStyle.Danger; // Red for clicked incorrect
+      }
+      finalRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`trivia_disabled_${idx}`)
+          .setLabel(`${labels[idx]}. ${opt.substring(0, 30)}`)
+          .setStyle(style)
+          .setDisabled(true)
+      );
+    });
+
+    const nextRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('trivia_next')
+        .setLabel('Next Question ➡️')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    let resultEmbed;
+    if (isCorrect) {
+      const xpReward = 30;
+      const { leveledUp, newLevel } = addXP(userId, xpReward);
+
+      resultEmbed = new EmbedBuilder()
+        .setTitle('🎉 Correct Answer!')
+        .setDescription(
+          `Awesome job <@${userId}>! **${qData.options[qData.correctIndex]}** is the correct answer!\n\n` +
+          `🎁 **Reward:** +${xpReward} XP!`
+        )
+        .setColor('#57F287');
+
+      if (leveledUp) {
+        resultEmbed.addFields({ name: '🌟 Level Up!', value: `You reached **Level ${newLevel}**! 🚀` });
+        if (message.member) {
+          await giveLevelRole(message.member, newLevel);
+        }
+      }
+    } else {
+      resultEmbed = new EmbedBuilder()
+        .setTitle('❌ Incorrect Answer!')
+        .setDescription(
+          `Oops! You chose **${qData.options[clickedIdx]}**.\n\n` +
+          `✅ The correct answer was **${labels[qData.correctIndex]}. ${qData.options[qData.correctIndex]}**.`
+        )
+        .setColor('#E74C3C');
+    }
+
+    // Update old message with disabled choices and show the Next Question button
+    await interaction.update({ embeds: [resultEmbed], components: [finalRow, nextRow] });
+    collector.stop('answered');
+
+    // Create a new collector for the "Next Question" button
+    setupNextQuestionCollector(gameMessage, userId, nextRow, finalRow);
+  });
+
+  collector.on('end', async (collected, reason) => {
+    if (!answered) {
+      const timeoutRow = new ActionRowBuilder();
+      qData.options.forEach((opt, idx) => {
+        const style = idx === qData.correctIndex ? ButtonStyle.Success : ButtonStyle.Secondary;
+        timeoutRow.addComponents(
+          new ButtonBuilder()
+            .setCustomId(`trivia_timeout_${idx}`)
+            .setLabel(`${labels[idx]}. ${opt.substring(0, 30)}`)
+            .setStyle(style)
+            .setDisabled(true)
+        );
+      });
+
+      const nextRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('trivia_next')
+          .setLabel('Next Question ➡️')
+          .setStyle(ButtonStyle.Primary)
+      );
+
+      const timeoutEmbed = new EmbedBuilder()
+        .setTitle('⏰ Time is Up!')
+        .setDescription(`You didn't answer in time. The correct answer was **${labels[qData.correctIndex]}. ${qData.options[qData.correctIndex]}**.`)
+        .setColor('#95A5A6');
+
+      try {
+        await gameMessage.edit({ embeds: [timeoutEmbed], components: [timeoutRow, nextRow] });
+        setupNextQuestionCollector(gameMessage, userId, nextRow, timeoutRow);
+      } catch (err) {
+        console.error('Failed to edit trivia timeout message:', err.message);
+        activeGames.delete(userId);
+      }
+    }
+  });
+}
+
+function setupNextQuestionCollector(gameMessage, userId, nextRow, optionRow) {
+  const nextFilter = i => i.user.id === userId && i.customId === 'trivia_next';
+  const nextCollector = gameMessage.createMessageComponentCollector({ filter: nextFilter, time: 30000 });
+
+  nextCollector.on('collect', async nextInteraction => {
+    nextCollector.stop('clicked');
+
+    // Disable the "Next Question" button so they can't double-click it
+    const disabledNextRow = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('trivia_next_disabled')
+        .setLabel('Next Question ➡️')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(true)
+    );
+
+    try {
+      await nextInteraction.update({ components: [optionRow, disabledNextRow] });
+    } catch (err) {
+      console.error('Failed to disable next button:', err.message);
+    }
+
+    // Play next round!
+    await playTrivia(gameMessage, userId);
+  });
+
+  nextCollector.on('end', async (collected, reason) => {
+    // If the next button collector times out without being clicked, free up the user session
+    if (reason !== 'clicked') {
+      activeGames.delete(userId);
+
+      // Clean up the message by removing the "Next Question" button row
+      try {
+        await gameMessage.edit({ components: [optionRow] });
+      } catch (err) {
+        console.error('Failed to clean up next button on timeout:', err.message);
+      }
+    }
+  });
+}
+
+module.exports = {
+  name: 'trivia',
+  description: 'Answer a rapid-fire trivia question to win XP!',
+  async execute(message) {
+    // Restrict command to the games channel
+    if (message.channel.id !== GAMES_CHANNEL_ID) {
+      return message.reply(`❌ Games can only be played in <#${GAMES_CHANNEL_ID}>!`);
+    }
+
+    const userId = message.author.id;
+
+    if (activeGames.has(userId)) {
+      return message.reply('❌ Finish your current game before starting a new one!');
+    }
+
+    activeGames.add(userId);
+    await playTrivia(message, userId);
+  }
+};

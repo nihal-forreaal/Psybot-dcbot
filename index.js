@@ -136,6 +136,49 @@ const onReady = async () => {
   } catch (err) {
     console.error('Error deploying slash commands:', err);
   }
+
+  // Set up 10-minute game reminder interval
+  setInterval(async () => {
+    try {
+      const { EmbedBuilder } = require('discord.js');
+      const announceChannelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
+      const gamesChannelId = '1506009762901524661';
+
+      const reminderEmbed = new EmbedBuilder()
+        .setTitle('🎮 Mini-Games are Available!')
+        .setDescription(
+          `Hey everyone! Did you know you can play fun mini-games directly in <#${gamesChannelId}>?\n\n` +
+          `🕹️ **Available Games:**\n` +
+          `• \`!guess\` — Play the Number Guessing Game (**+50 XP** on win!)\n` +
+          `• \`!trivia\` — Play a rapid-fire Trivia Quiz with interactive buttons (**+30 XP** on correct!)\n\n` +
+          `Head over to <#${gamesChannelId}> and try them out to level up your profile! 🚀`
+        )
+        .setColor('#5865F2')
+        .setTimestamp();
+
+      if (announceChannelId) {
+        const channel = await client.channels.fetch(announceChannelId).catch(() => null);
+        if (channel && channel.isTextBased()) {
+          await channel.send({ embeds: [reminderEmbed] });
+          console.log(`Sent game reminder to configured announce channel: ${announceChannelId}`);
+          return;
+        }
+      }
+
+      // Fallback: If no announce channel is found, send to 'general' text channel in each guild
+      for (const guild of client.guilds.cache.values()) {
+        const channel = guild.channels.cache.find(
+          c => c.isTextBased() && (c.name.toLowerCase() === 'general' || c.name.toLowerCase() === 'chat' || c.name.toLowerCase() === 'lounge')
+        );
+        if (channel) {
+          await channel.send({ embeds: [reminderEmbed] }).catch(() => null);
+          console.log(`Sent game reminder to fallback channel: #${channel.name} in guild: ${guild.name}`);
+        }
+      }
+    } catch (err) {
+      console.error('Error sending game reminder:', err);
+    }
+  }, 10 * 60 * 1000); // Every 10 minutes
 };
 
 client.once('ready', onReady);
@@ -400,9 +443,10 @@ try {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
-  // Log all messages to the specified channel
+  // Log all messages to the specified channel, excluding the logs channel and the games channel (1506009762901524661)
   const logChannelId = '1505905409003884634';
-  if (message.channel.id !== logChannelId) {
+  const gamesChannelId = '1506009762901524661';
+  if (message.channel.id !== logChannelId && message.channel.id !== gamesChannelId) {
     try {
       const logChannel = client.channels.cache.get(logChannelId);
       if (logChannel) {
