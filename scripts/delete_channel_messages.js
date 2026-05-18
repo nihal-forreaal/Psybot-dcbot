@@ -26,8 +26,9 @@ client.once('clientReady', async () => {
       throw new Error(`Channel ${channelId} is not a text channel or could not be found.`);
     }
 
+    let before = null;
     while (true) {
-      const messages = await channel.messages.fetch({ limit: 100 });
+      const messages = await channel.messages.fetch({ limit: 100, before });
       if (messages.size === 0) break;
 
       for (const message of messages.values()) {
@@ -38,6 +39,7 @@ client.once('clientReady', async () => {
       }
 
       console.log(`Deleted ${deleted} messages so far...`);
+      before = messages.last().id;
     }
 
     console.log(`Done. Deleted ${deleted} messages from channel ${channelId}.`);
