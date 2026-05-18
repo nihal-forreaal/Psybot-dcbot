@@ -449,19 +449,15 @@ client.on('messageCreate', async message => {
     if (numMatch) {
       const count = parseInt(numMatch[1], 10);
       if (count > 0) {
-        const maxLimit = 10000;
+        const maxLimit = 100;
         const actualCount = Math.min(count, maxLimit);
         
         const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        let randomLetters = '';
         for (let i = 0; i < actualCount; i++) {
-          randomLetters += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-
-        const chunkSize = 2000;
-        for (let i = 0; i < randomLetters.length; i += chunkSize) {
-          const chunk = randomLetters.substring(i, i + chunkSize);
-          await message.channel.send(chunk).catch(err => console.error('Failed to send chunk:', err));
+          const letter = chars.charAt(Math.floor(Math.random() * chars.length));
+          await message.channel.send(letter).catch(err => console.error('Failed to send letter:', err));
+          // Wait 1000ms between letters to perfectly comply with Discord rate limits
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
         if (count > maxLimit) {
