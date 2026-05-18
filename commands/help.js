@@ -21,7 +21,7 @@ module.exports = {
       .setFooter({ text: 'Need more help? Join the support server!' });
 
     let commandText = '';
-    const excludeCommands = ['kick', 'timeout', 'mute', 'deafen', 'defen'];
+    const excludeCommands = ['kick', 'timeout', 'mute', 'deafen', 'defen', 'delete'];
     commands.forEach(cmd => {
       const desc = cmd.description || 'No description';
       // Skip admin-only and excluded moderation commands from help panel
