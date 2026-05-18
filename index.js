@@ -439,6 +439,26 @@ try {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
+  // Filter messages in the games channel (1506009762901524661)
+  if (message.channel.id === '1506009762901524661') {
+    const trimmed = message.content.trim();
+    const lower = trimmed.toLowerCase();
+    
+    const isAllowedCommand = lower.startsWith('!trivia') || lower.startsWith('!guess');
+    const isNumber = /^\d+$/.test(trimmed);
+    const isCancelKeyword = lower === 'cancel' || lower === 'stop' || lower === 'quit';
+
+    if (!isAllowedCommand && !isNumber && !isCancelKeyword) {
+      try {
+        await message.delete();
+        console.log(`Deleted non-game message from ${message.author.tag} in games channel: "${message.content}"`);
+      } catch (err) {
+        console.error('Failed to delete non-game message:', err);
+      }
+      return;
+    }
+  }
+
   // Custom random letter generator for channel 1445395976495042641
   if (message.channel.id === '1445395976495042641') {
     const numMatch = message.content.trim().match(/^(\d+)$/);
