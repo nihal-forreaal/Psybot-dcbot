@@ -93,6 +93,18 @@ module.exports = {
       .setDescription(
         `I have chosen a secret number between **1 and 100**.\n` +
         `Type your guess in the chat to start!\n\n` +
+        `🎁 **XP Rewards (Scaled by attempts):**\n` +
+        `• 1 attempt: **100 XP** 🍀\n` +
+        `• 2 attempts: **80 XP**\n` +
+        `• 3 attempts: **60 XP**\n` +
+        `• 4 attempts: **50 XP**\n` +
+        `• 5 attempts: **40 XP**\n` +
+        `• 6 attempts: **30 XP**\n` +
+        `• 7 attempts: **20 XP**\n` +
+        `• 8 attempts: **15 XP**\n` +
+        `• 9 attempts: **10 XP**\n` +
+        `• 10 attempts: **5 XP**\n` +
+        `• 11+ attempts: **0 XP** (No reward 😢)\n\n` +
         `*Type \`cancel\` at any time to end the game.*`
       )
       .setColor('#5865F2')

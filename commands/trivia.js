@@ -164,7 +164,7 @@ async function playTrivia(message, userId, streak = 0) {
     .setAuthor({ name: qData.category })
     .setDescription(`**${qData.question}**\n\n` + qData.options.map((opt, i) => `**${labels[i]}.** ${opt}`).join('\n'))
     .setColor('#5865F2')
-    .setFooter({ text: 'You have 15 seconds to answer!' });
+    .setFooter({ text: '⏱️ 15s | Correct = 50 XP (3-4 Streak: 1.2x XP | 5+ Streak: 1.5x XP)' });
 
   const gameMessage = await message.channel.send({ embeds: [questionEmbed], components: [optionsRow] });
 
