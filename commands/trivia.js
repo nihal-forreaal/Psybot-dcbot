@@ -7,16 +7,16 @@ const activeGames = new Map();
 const GAMES_CHANNEL_ID = '1506009762901524661';
 
 const LEVEL_ROLE_REWARDS = [
-  { level: 1, name: 'Nobby' },
-  { level: 2, name: 'Normie' },
-  { level: 5, name: 'Rookie' },
-  { level: 10, name: 'Grinder' },
-  { level: 15, name: 'Sweaty' },
-  { level: 20, name: 'Pro' },
-  { level: 30, name: 'Elite' },
-  { level: 35, name: 'Legend' },
-  { level: 40, name: 'Mythic' },
-  { level: 50, name: 'Godmode' },
+  { level: 1, name: 'Nobby 1' },
+  { level: 2, name: 'Normie 2' },
+  { level: 5, name: 'Rookie 5' },
+  { level: 10, name: 'Grinder 10' },
+  { level: 15, name: 'Sweaty 15' },
+  { level: 20, name: 'Pro 20' },
+  { level: 30, name: 'Elite 30' },
+  { level: 35, name: 'Legend 35' },
+  { level: 40, name: 'Mythic 40' },
+  { level: 50, name: 'Godmode 50' },
 ];
 
 const TRIVIA_QUESTIONS = [
@@ -135,11 +135,23 @@ async function giveLevelRole(member, level) {
   try {
     const roles = await member.guild.roles.fetch();
     const role = roles.find(r => r.name.toLowerCase() === reward.name.toLowerCase());
-    if (role && !member.roles.cache.has(role.id)) {
-      await member.roles.add(role);
+    if (role) {
+      if (!member.roles.cache.has(role.id)) {
+        await member.roles.add(role);
+      }
+
+      // Remove all OTHER level roles from the member
+      for (const r of LEVEL_ROLE_REWARDS) {
+        if (r.level !== level) {
+          const otherRole = roles.find(o => o.name.toLowerCase() === r.name.toLowerCase());
+          if (otherRole && member.roles.cache.has(otherRole.id)) {
+            await member.roles.remove(otherRole).catch(() => null);
+          }
+        }
+      }
     }
   } catch (err) {
-    console.error(`Failed to assign role ${reward.name} on level up:`, err.message);
+    console.error(`Failed to manage role for ${reward.name} on level up:`, err.message);
   }
 }
 

@@ -277,11 +277,23 @@ async function giveLevelRole(member, level) {
 
   try {
     const role = await findOrCreateLevelRole(member.guild, reward);
-    if (role && !member.roles.cache.has(role.id)) {
-      await member.roles.add(role);
+    if (role) {
+      if (!member.roles.cache.has(role.id)) {
+        await member.roles.add(role);
+      }
+
+      // Remove all OTHER level roles from the member
+      for (const r of LEVEL_ROLE_REWARDS) {
+        if (r.level !== level) {
+          const otherRole = await findOrCreateLevelRole(member.guild, r);
+          if (otherRole && member.roles.cache.has(otherRole.id)) {
+            await member.roles.remove(otherRole).catch(() => null);
+          }
+        }
+      }
     }
   } catch (err) {
-    console.error(`Error adding level ${level} role:`, err);
+    console.error(`Error managing level roles for ${member.user.tag}:`, err);
   }
 }
 
