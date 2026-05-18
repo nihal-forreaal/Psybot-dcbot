@@ -156,6 +156,14 @@ const onReady = async () => {
         .setColor('#5865F2')
         .setTimestamp();
 
+      const targetChannelId = '1506009762901524661';
+      const channel = await client.channels.fetch(targetChannelId).catch(() => null);
+      if (channel && channel.isTextBased()) {
+        await channel.send({ embeds: [reminderEmbed] });
+        console.log(`Sent game reminder to gaming announce channel: ${targetChannelId}`);
+        return;
+      }
+
       if (announceChannelId && announceChannelId !== '1445302290918408283') {
         const channel = await client.channels.fetch(announceChannelId).catch(() => null);
         if (channel && channel.isTextBased()) {
@@ -165,7 +173,7 @@ const onReady = async () => {
         }
       }
 
-      // Fallback: If no announce channel is found, send to 'general' text channel in each guild
+      // Fallback: If no target channel is found, send to 'general' text channel in each guild
       for (const guild of client.guilds.cache.values()) {
         const channel = guild.channels.cache.find(
           c => c.isTextBased() && c.id !== '1445302290918408283' && (c.name.toLowerCase() === 'general' || c.name.toLowerCase() === 'chat' || c.name.toLowerCase() === 'lounge')
