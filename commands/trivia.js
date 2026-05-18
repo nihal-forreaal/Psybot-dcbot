@@ -143,7 +143,7 @@ async function giveLevelRole(member, level) {
   }
 }
 
-async function playTrivia(message, userId) {
+async function playTrivia(message, userId, streak = 0) {
   // Pick a random question
   const qData = TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)];
   const labels = ['A', 'B', 'C', 'D', 'E'];
@@ -205,14 +205,33 @@ async function playTrivia(message, userId) {
     );
 
     let resultEmbed;
+    let nextStreak = 0;
     if (isCorrect) {
-      const xpReward = 30;
+      nextStreak = streak + 1;
+      const baseXP = 50;
+      let multiplier = 1.0;
+      if (nextStreak >= 5) {
+        multiplier = 1.5;
+      } else if (nextStreak >= 3) {
+        multiplier = 1.2;
+      }
+      const xpReward = Math.round(baseXP * multiplier);
       const { leveledUp, newLevel } = addXP(userId, xpReward);
+
+      let streakText = '';
+      if (nextStreak >= 5) {
+        streakText = `🔥 **Streak:** ${nextStreak} in a row! (**1.5x Multiplier** applied! 🚀)\n\n`;
+      } else if (nextStreak >= 3) {
+        streakText = `🔥 **Streak:** ${nextStreak} in a row! (**1.2x Multiplier** applied! ✨)\n\n`;
+      } else if (nextStreak > 1) {
+        streakText = `🔥 **Streak:** ${nextStreak} in a row!\n\n`;
+      }
 
       resultEmbed = new EmbedBuilder()
         .setTitle('🎉 Correct Answer!')
         .setDescription(
           `Awesome job <@${userId}>! **${qData.options[qData.correctIndex]}** is the correct answer!\n\n` +
+          streakText +
           `🎁 **Reward:** +${xpReward} XP!`
         )
         .setColor('#57F287');
@@ -224,11 +243,13 @@ async function playTrivia(message, userId) {
         }
       }
     } else {
+      nextStreak = 0;
       resultEmbed = new EmbedBuilder()
         .setTitle('❌ Incorrect Answer!')
         .setDescription(
           `Oops! You chose **${qData.options[clickedIdx]}**.\n\n` +
-          `✅ The correct answer was **${labels[qData.correctIndex]}. ${qData.options[qData.correctIndex]}**.`
+          `✅ The correct answer was **${labels[qData.correctIndex]}. ${qData.options[qData.correctIndex]}**.\n\n` +
+          `💔 Streak reset to 0.`
         )
         .setColor('#E74C3C');
     }
@@ -238,7 +259,7 @@ async function playTrivia(message, userId) {
     collector.stop('answered');
 
     // Create a new collector for the "Next Question" button
-    setupNextQuestionCollector(gameMessage, userId, nextRow, finalRow);
+    setupNextQuestionCollector(gameMessage, userId, nextRow, finalRow, nextStreak);
   });
 
   collector.on('end', async (collected, reason) => {
@@ -264,12 +285,12 @@ async function playTrivia(message, userId) {
 
       const timeoutEmbed = new EmbedBuilder()
         .setTitle('⏰ Time is Up!')
-        .setDescription(`You didn't answer in time. The correct answer was **${labels[qData.correctIndex]}. ${qData.options[qData.correctIndex]}**.`)
+        .setDescription(`You didn't answer in time. The correct answer was **${labels[qData.correctIndex]}. ${qData.options[qData.correctIndex]}**.\n\n💔 Streak reset to 0.`)
         .setColor('#95A5A6');
 
       try {
         await gameMessage.edit({ embeds: [timeoutEmbed], components: [timeoutRow, nextRow] });
-        setupNextQuestionCollector(gameMessage, userId, nextRow, timeoutRow);
+        setupNextQuestionCollector(gameMessage, userId, nextRow, timeoutRow, 0);
       } catch (err) {
         console.error('Failed to edit trivia timeout message:', err.message);
         activeGames.delete(userId);
@@ -278,7 +299,7 @@ async function playTrivia(message, userId) {
   });
 }
 
-function setupNextQuestionCollector(gameMessage, userId, nextRow, optionRow) {
+function setupNextQuestionCollector(gameMessage, userId, nextRow, optionRow, streak) {
   const nextFilter = i => i.user.id === userId && i.customId === 'trivia_next';
   const nextCollector = gameMessage.createMessageComponentCollector({ filter: nextFilter, time: 30000 });
 
@@ -301,7 +322,7 @@ function setupNextQuestionCollector(gameMessage, userId, nextRow, optionRow) {
     }
 
     // Play next round!
-    await playTrivia(gameMessage, userId);
+    await playTrivia(gameMessage, userId, streak);
   });
 
   nextCollector.on('end', async (collected, reason) => {
