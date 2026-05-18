@@ -128,10 +128,10 @@ const onReady = async () => {
     await client.application.commands.set(slashCommands);
     console.log(`Successfully registered global slash commands for the bot!`);
 
-    // Also register them on guilds for instant updates without waiting for Discord's global cache (up to 1 hour)
+    // Clear guild-level commands to ensure no duplicates exist (only global ones will remain)
     for (const guild of client.guilds.cache.values()) {
-      await guild.commands.set(slashCommands);
-      console.log(`Registered slash commands for guild: ${guild.name}`);
+      await guild.commands.set([]);
+      console.log(`Cleared guild-specific commands for: ${guild.name}`);
     }
   } catch (err) {
     console.error('Error deploying slash commands:', err);
@@ -211,16 +211,16 @@ client.on('guildMemberAdd', async member => {
 });
 
 const LEVEL_ROLE_REWARDS = [
-  { level: 1, name: 'Nobby' },
-  { level: 2, name: 'Normie' },
-  { level: 5, name: 'Rookie' },
-  { level: 10, name: 'Grinder' },
-  { level: 15, name: 'Sweaty' },
-  { level: 20, name: 'Pro' },
-  { level: 30, name: 'Elite' },
-  { level: 35, name: 'Legend' },
-  { level: 40, name: 'Mythic' },
-  { level: 50, name: 'Godmode' },
+  { level: 1, name: 'Nobby Lvl 1' },
+  { level: 2, name: 'Normie Lvl 2' },
+  { level: 5, name: 'Rookie Lvl 5' },
+  { level: 10, name: 'Grinder Lvl 10' },
+  { level: 15, name: 'Sweaty Lvl 15' },
+  { level: 20, name: 'Pro Lvl 20' },
+  { level: 30, name: 'Elite Lvl 30' },
+  { level: 35, name: 'Legend Lvl 35' },
+  { level: 40, name: 'Mythic Lvl 40' },
+  { level: 50, name: 'Godmode Lvl 50' },
 ];
 
 // Helper function to get role ID for a level
