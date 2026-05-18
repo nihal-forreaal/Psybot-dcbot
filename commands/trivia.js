@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const levelsPath = path.join(__dirname, '..', 'levels.json');
-const activeGames = new Set();
+const activeGames = new Map();
 const GAMES_CHANNEL_ID = '1506009762901524661';
 
 const LEVEL_ROLE_REWARDS = [
@@ -144,8 +144,30 @@ async function giveLevelRole(member, level) {
 }
 
 async function playTrivia(message, userId, streak = 0) {
-  // Pick a random question
-  const qData = TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)];
+  let session = activeGames.get(userId);
+  if (!session) {
+    session = { askedIndices: [] };
+    activeGames.set(userId, session);
+  }
+
+  // Pick a random question that has not been asked in this session
+  let availableIndices = [];
+  for (let i = 0; i < TRIVIA_QUESTIONS.length; i++) {
+    if (!session.askedIndices.includes(i)) {
+      availableIndices.push(i);
+    }
+  }
+
+  // If all questions have been asked, reset history to repeat them
+  if (availableIndices.length === 0) {
+    session.askedIndices = [];
+    availableIndices = TRIVIA_QUESTIONS.map((_, i) => i);
+  }
+
+  const randomIdx = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+  session.askedIndices.push(randomIdx);
+
+  const qData = TRIVIA_QUESTIONS[randomIdx];
   const labels = ['A', 'B', 'C', 'D', 'E'];
 
   // Create Options Buttons
@@ -384,7 +406,7 @@ module.exports = {
       return message.reply('❌ Finish your current game before starting a new one!');
     }
 
-    activeGames.add(userId);
+    activeGames.set(userId, { askedIndices: [] });
     await playTrivia(message, userId);
   }
 };

@@ -175,6 +175,24 @@ const onReady = async () => {
       console.error('Error sending game reminder:', err);
     }
   }, 10 * 60 * 1000); // Every 10 minutes
+
+  // Set up 24-hour games channel clear interval
+  setInterval(async () => {
+    try {
+      const gamesChannelId = '1506009762901524661';
+      const channel = await client.channels.fetch(gamesChannelId).catch(() => null);
+      if (channel && channel.isTextBased()) {
+        console.log(`Starting daily clear of games channel: ${gamesChannelId}`);
+        let deleted;
+        do {
+          deleted = await channel.bulkDelete(100, true).catch(() => null);
+        } while (deleted && deleted.size > 0);
+        console.log(`Successfully cleared games channel: ${gamesChannelId}`);
+      }
+    } catch (err) {
+      console.error('Error during daily games channel clearing:', err);
+    }
+  }, 24 * 60 * 60 * 1000); // Every 24 hours
 };
 
 client.once('ready', onReady);
