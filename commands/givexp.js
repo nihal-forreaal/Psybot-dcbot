@@ -1,0 +1,142 @@
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+
+const levelsPath = path.join(__dirname, '..', 'levels.json');
+
+const LEVEL_ROLE_REWARDS = [
+  { level: 1, name: 'Nobby' },
+  { level: 2, name: 'Normie' },
+  { level: 5, name: 'Rookie' },
+  { level: 10, name: 'Grinder' },
+  { level: 15, name: 'Sweaty' },
+  { level: 20, name: 'Pro' },
+  { level: 30, name: 'Elite' },
+  { level: 35, name: 'Legend' },
+  { level: 40, name: 'Mythic' },
+  { level: 50, name: 'Godmode' },
+];
+
+function addXP(userId, xpAmount) {
+  try {
+    let levels = {};
+    if (fs.existsSync(levelsPath)) {
+      const content = fs.readFileSync(levelsPath, 'utf8').trim();
+      levels = content ? JSON.parse(content) : {};
+    }
+    if (!levels[userId]) {
+      levels[userId] = { xp: 0, level: 0 };
+    }
+    levels[userId].xp += xpAmount;
+
+    let leveledUp = false;
+    let newLevel = levels[userId].level;
+
+    while (true) {
+      const xpNeeded = levels[userId].level * 600 + 600;
+      if (levels[userId].xp >= xpNeeded) {
+        levels[userId].level += 1;
+        newLevel = levels[userId].level;
+        leveledUp = true;
+      } else {
+        break;
+      }
+    }
+
+    fs.writeFileSync(levelsPath, JSON.stringify(levels, null, 2), 'utf8');
+    return { leveledUp, newLevel, currentXP: levels[userId].xp };
+  } catch (err) {
+    console.error('Failed to update levels.json:', err);
+    return { leveledUp: false };
+  }
+}
+
+async function giveLevelRole(member, level) {
+  const reward = LEVEL_ROLE_REWARDS.find(r => r.level === level);
+  if (!reward) return;
+
+  try {
+    const roles = await member.guild.roles.fetch();
+    const role = roles.find(r => r.name.toLowerCase() === reward.name.toLowerCase());
+    if (role && !member.roles.cache.has(role.id)) {
+      await member.roles.add(role);
+    }
+  } catch (err) {
+    console.error(`Failed to assign role ${reward.name} on level up:`, err.message);
+  }
+}
+
+module.exports = {
+  name: 'givexp',
+  description: 'Give XP to a user (admin only)',
+  async execute(message, args) {
+    const isAdminRole = message.member.roles.cache.has(process.env.ADMIN_ROLE_ID);
+    const hasAdminPerm = message.member.permissions.has(PermissionFlagsBits.Administrator);
+    if (!isAdminRole && !hasAdminPerm) {
+      return message.reply('Only admins can use this command.');
+    }
+
+    if (!args[0]) {
+      return message.reply('Please specify a user (mention or ID). Example: `!givexp @person 100` or `!givexp 1105072573580062790 100`');
+    }
+
+    // Try to get target user from mention first, then by ID
+    let targetUser = message.mentions.users.first();
+    let targetId = targetUser ? targetUser.id : args[0].replace(/[<@!>]/g, '');
+
+    // Validate ID
+    if (!/^\d+$/.test(targetId)) {
+      return message.reply('Invalid user ID/mention provided.');
+    }
+
+    if (!targetUser) {
+      targetUser = await message.client.users.fetch(targetId).catch(() => null);
+    }
+
+    if (!targetUser) {
+      return message.reply('User not found.');
+    }
+
+    const xpAmount = parseInt(args[1], 10);
+    if (isNaN(xpAmount) || xpAmount <= 0) {
+      return message.reply('Please specify a valid positive amount of XP to give.');
+    }
+
+    const result = addXP(targetId, xpAmount);
+    if (!result || result.currentXP === undefined) {
+      return message.reply('Failed to give XP to user.');
+    }
+
+    const replyEmbed = new EmbedBuilder()
+      .setTitle('🎁 XP Gifted!')
+      .setDescription(`Successfully gave **${xpAmount} XP** to ${targetUser} (ID: \`${targetId}\`).`)
+      .setColor('#57F287')
+      .addFields({ name: 'Total XP', value: `${result.currentXP} XP` });
+
+    await message.reply({ embeds: [replyEmbed] });
+
+    // Handle potential level-up
+    if (result.leveledUp) {
+      const member = await message.guild.members.fetch(targetId).catch(() => null);
+      if (member) {
+        await giveLevelRole(member, result.newLevel);
+
+        const levelChannel = message.client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
+        if (levelChannel) {
+          const embed = new EmbedBuilder()
+            .setTitle('🎉 Level Up!')
+            .setDescription(`${targetUser} has reached Level ${result.newLevel}!`)
+            .addFields(
+              { name: '✅ XP', value: `${result.currentXP} / ${result.newLevel * 600 + 600}` },
+              { name: '📊 Level', value: `${result.newLevel}`, inline: true }
+            )
+            .setColor('#5865F2')
+            .setThumbnail(targetUser.displayAvatarURL())
+            .setFooter({ text: 'Keep grinding to reach the top!' });
+
+          await levelChannel.send({ embeds: [embed] });
+        }
+      }
+    }
+  }
+};
