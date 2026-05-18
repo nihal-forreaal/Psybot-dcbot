@@ -152,13 +152,13 @@ module.exports = {
         await m.reply({ embeds: [winEmbed] });
       } else if (guess > secretNumber) {
         const highEmbed = new EmbedBuilder()
-          .setDescription(`📉 **${guess}** is **too high**! Try a smaller number.`)
+          .setDescription(`📉 **${guess}** is too high! Go **lower** ⬇️`)
           .setColor('#F1C40F')
           .setFooter({ text: `Attempts: ${attempts}` });
         await m.reply({ embeds: [highEmbed] });
       } else {
         const lowEmbed = new EmbedBuilder()
-          .setDescription(`📈 **${guess}** is **too low**! Try a larger number.`)
+          .setDescription(`📈 **${guess}** is too low! Go **higher** ⬆️`)
           .setColor('#F1C40F')
           .setFooter({ text: `Attempts: ${attempts}` });
         await m.reply({ embeds: [lowEmbed] });
