@@ -44,7 +44,7 @@ module.exports = {
           const announceChannelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
           const allowedMentions = { parse: ['everyone'] };
 
-          if (announceChannelId) {
+          if (announceChannelId && announceChannelId !== '1445302290918408283') {
             const channel = await client.channels.fetch(announceChannelId).catch(() => null);
             if (channel) {
               await channel.send({ content: message, allowedMentions });
@@ -54,7 +54,7 @@ module.exports = {
 
           const guild = client.guilds.cache.first();
           if (guild) {
-            const chan = guild.channels.cache.find(c => c.isTextBased() && c.permissionsFor(guild.members.me)?.has('SendMessages'));
+            const chan = guild.channels.cache.find(c => c.id !== '1445302290918408283' && c.isTextBased() && c.permissionsFor(guild.members.me)?.has('SendMessages'));
             if (chan) await chan.send({ content: message, allowedMentions });
           }
         }

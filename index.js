@@ -156,7 +156,7 @@ const onReady = async () => {
         .setColor('#5865F2')
         .setTimestamp();
 
-      if (announceChannelId) {
+      if (announceChannelId && announceChannelId !== '1445302290918408283') {
         const channel = await client.channels.fetch(announceChannelId).catch(() => null);
         if (channel && channel.isTextBased()) {
           await channel.send({ embeds: [reminderEmbed] });
@@ -168,7 +168,7 @@ const onReady = async () => {
       // Fallback: If no announce channel is found, send to 'general' text channel in each guild
       for (const guild of client.guilds.cache.values()) {
         const channel = guild.channels.cache.find(
-          c => c.isTextBased() && (c.name.toLowerCase() === 'general' || c.name.toLowerCase() === 'chat' || c.name.toLowerCase() === 'lounge')
+          c => c.isTextBased() && c.id !== '1445302290918408283' && (c.name.toLowerCase() === 'general' || c.name.toLowerCase() === 'chat' || c.name.toLowerCase() === 'lounge')
         );
         if (channel) {
           await channel.send({ embeds: [reminderEmbed] }).catch(() => null);
