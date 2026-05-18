@@ -1,0 +1,22 @@
+# Dependency directories
+node_modules/
+
+# Local configuration / private tokens
+.env
+
+# Temporary / environment-specific files
+tunnel.url
+.sixth/
+
+# Database files & state
+levels.json
+tickets.json
+
+# Log files
+*.log
+bot.log
+bot.err.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
