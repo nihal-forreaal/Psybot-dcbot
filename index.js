@@ -144,22 +144,10 @@ const onReady = async () => {
       const announceChannelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
       const gamesChannelId = '1506009762901524661';
 
-      const reminderEmbed = new EmbedBuilder()
-        .setTitle('🎮 Mini-Games are Available!')
-        .setDescription(
-          `Hey everyone! Did you know you can play fun mini-games directly in <#${gamesChannelId}>?\n\n` +
-          `🕹️ **Available Games:**\n` +
-          `• \`!guess\` — Play the Number Guessing Game (**+50 XP** on win!)\n` +
-          `• \`!trivia\` — Play a rapid-fire Trivia Quiz with interactive buttons (**+30 XP** on correct!)\n\n` +
-          `Head over to <#${gamesChannelId}> and try them out to level up your profile! 🚀`
-        )
-        .setColor('#5865F2')
-        .setTimestamp();
-
       const targetChannelId = '1506009762901524661';
       const channel = await client.channels.fetch(targetChannelId).catch(() => null);
       if (channel && channel.isTextBased()) {
-        await channel.send({ embeds: [reminderEmbed] });
+        await channel.send("we have games like !trivia !guess");
         console.log(`Sent game reminder to gaming announce channel: ${targetChannelId}`);
         return;
       }
@@ -167,7 +155,7 @@ const onReady = async () => {
       if (announceChannelId && announceChannelId !== '1445302290918408283') {
         const channel = await client.channels.fetch(announceChannelId).catch(() => null);
         if (channel && channel.isTextBased()) {
-          await channel.send({ embeds: [reminderEmbed] });
+          await channel.send("we have games like !trivia !guess");
           console.log(`Sent game reminder to configured announce channel: ${announceChannelId}`);
           return;
         }
@@ -179,7 +167,7 @@ const onReady = async () => {
           c => c.isTextBased() && c.id !== '1445302290918408283' && (c.name.toLowerCase() === 'general' || c.name.toLowerCase() === 'chat' || c.name.toLowerCase() === 'lounge')
         );
         if (channel) {
-          await channel.send({ embeds: [reminderEmbed] }).catch(() => null);
+          await channel.send("we have games like !trivia !guess").catch(() => null);
           console.log(`Sent game reminder to fallback channel: #${channel.name} in guild: ${guild.name}`);
         }
       }
