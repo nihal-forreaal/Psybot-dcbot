@@ -211,16 +211,16 @@ client.on('guildMemberAdd', async member => {
 });
 
 const LEVEL_ROLE_REWARDS = [
-  { level: 1, name: 'Nobby Lvl 1' },
-  { level: 2, name: 'Normie Lvl 2' },
-  { level: 5, name: 'Rookie Lvl 5' },
-  { level: 10, name: 'Grinder Lvl 10' },
-  { level: 15, name: 'Sweaty Lvl 15' },
-  { level: 20, name: 'Pro Lvl 20' },
-  { level: 30, name: 'Elite Lvl 30' },
-  { level: 35, name: 'Legend Lvl 35' },
-  { level: 40, name: 'Mythic Lvl 40' },
-  { level: 50, name: 'Godmode Lvl 50' },
+  { level: 1, name: 'Nobby 1' },
+  { level: 2, name: 'Normie 2' },
+  { level: 5, name: 'Rookie 5' },
+  { level: 10, name: 'Grinder 10' },
+  { level: 15, name: 'Sweaty 15' },
+  { level: 20, name: 'Pro 20' },
+  { level: 30, name: 'Elite 30' },
+  { level: 35, name: 'Legend 35' },
+  { level: 40, name: 'Mythic 40' },
+  { level: 50, name: 'Godmode 50' },
 ];
 
 // Helper function to get role ID for a level
