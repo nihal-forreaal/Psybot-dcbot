@@ -201,7 +201,11 @@ async function playTrivia(message, userId, streak = 0) {
       new ButtonBuilder()
         .setCustomId('trivia_next')
         .setLabel('Next Question ➡️')
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('trivia_stop')
+        .setLabel('Stop Game 🛑')
+        .setStyle(ButtonStyle.Danger)
     );
 
     let resultEmbed;
@@ -280,7 +284,11 @@ async function playTrivia(message, userId, streak = 0) {
         new ButtonBuilder()
           .setCustomId('trivia_next')
           .setLabel('Next Question ➡️')
-          .setStyle(ButtonStyle.Primary)
+          .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+          .setCustomId('trivia_stop')
+          .setLabel('Stop Game 🛑')
+          .setStyle(ButtonStyle.Danger)
       );
 
       const timeoutEmbed = new EmbedBuilder()
@@ -300,18 +308,39 @@ async function playTrivia(message, userId, streak = 0) {
 }
 
 function setupNextQuestionCollector(gameMessage, userId, nextRow, optionRow, streak) {
-  const nextFilter = i => i.user.id === userId && i.customId === 'trivia_next';
+  const nextFilter = i => i.user.id === userId && (i.customId === 'trivia_next' || i.customId === 'trivia_stop');
   const nextCollector = gameMessage.createMessageComponentCollector({ filter: nextFilter, time: 30000 });
 
   nextCollector.on('collect', async nextInteraction => {
     nextCollector.stop('clicked');
 
-    // Disable the "Next Question" button so they can't double-click it
+    if (nextInteraction.customId === 'trivia_stop') {
+      activeGames.delete(userId);
+
+      const stopEmbed = new EmbedBuilder()
+        .setTitle('🏁 Trivia Game Stopped')
+        .setDescription(`You have stopped the trivia game.\n\n🔥 **Final Streak:** ${streak} Correct answers!`)
+        .setColor('#E74C3C');
+
+      try {
+        await nextInteraction.update({ embeds: [stopEmbed], components: [optionRow] });
+      } catch (err) {
+        console.error('Failed to update stop message:', err.message);
+      }
+      return;
+    }
+
+    // Disable both the "Next Question" and "Stop Game" buttons so they can't double-click
     const disabledNextRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('trivia_next_disabled')
         .setLabel('Next Question ➡️')
         .setStyle(ButtonStyle.Primary)
+        .setDisabled(true),
+      new ButtonBuilder()
+        .setCustomId('trivia_stop_disabled')
+        .setLabel('Stop Game 🛑')
+        .setStyle(ButtonStyle.Danger)
         .setDisabled(true)
     );
 
