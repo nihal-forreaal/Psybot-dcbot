@@ -443,6 +443,35 @@ try {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
+  // Custom random letter generator for channel 1445395976495042641
+  if (message.channel.id === '1445395976495042641') {
+    const numMatch = message.content.trim().match(/^(\d+)$/);
+    if (numMatch) {
+      const count = parseInt(numMatch[1], 10);
+      if (count > 0) {
+        const maxLimit = 10000;
+        const actualCount = Math.min(count, maxLimit);
+        
+        const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        let randomLetters = '';
+        for (let i = 0; i < actualCount; i++) {
+          randomLetters += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+
+        const chunkSize = 2000;
+        for (let i = 0; i < randomLetters.length; i += chunkSize) {
+          const chunk = randomLetters.substring(i, i + chunkSize);
+          await message.channel.send(chunk).catch(err => console.error('Failed to send chunk:', err));
+        }
+
+        if (count > maxLimit) {
+          await message.channel.send(`⚠️ *Count capped at ${maxLimit} to prevent rate limits.*`).catch(() => {});
+        }
+        return;
+      }
+    }
+  }
+
   // Log all messages to the specified channel, excluding the logs channel and the games channel (1506009762901524661)
   const logChannelId = '1505905409003884634';
   const gamesChannelId = '1506009762901524661';
