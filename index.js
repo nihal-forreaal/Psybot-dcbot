@@ -579,29 +579,37 @@ client.on('messageCreate', async message => {
     levels[userId].xp += xpGain;
 
     // Check for level up
-    const xpNeeded = levels[userId].level * 600 + 600; // 600 XP per level
-    if (levels[userId].xp >= xpNeeded) {
-      levels[userId].level += 1;
-      const newLevel = levels[userId].level;
+    let levelsGained = [];
+    while (true) {
+      const xpNeeded = levels[userId].level * 600 + 600; // 600 XP per level
+      if (levels[userId].xp >= xpNeeded) {
+        levels[userId].level += 1;
+        levelsGained.push(levels[userId].level);
+      } else {
+        break;
+      }
+    }
 
-      // Send level up announcement
+    if (levelsGained.length > 0) {
       const levelChannel = client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
-      if (levelChannel) {
-        const { EmbedBuilder } = require('discord.js');
-        const embed = new EmbedBuilder()
-          .setTitle('🎉 Level Up!')
-          .setDescription(`${message.author} has reached Level ${newLevel}!`)
-          .addFields(
-            { name: '✅ XP', value: `${levels[userId].xp} / ${newLevel * 600 + 600}` },
-            { name: '📊 Level', value: `${newLevel}`, inline: true }
-          )
-          .setColor('#5865F2')
-          .setThumbnail(message.author.displayAvatarURL())
-          .setFooter({ text: 'Keep grinding to reach the top!' });
+      for (const lvl of levelsGained) {
+        if (levelChannel) {
+          const { EmbedBuilder } = require('discord.js');
+          const embed = new EmbedBuilder()
+            .setTitle('🎉 Level Up!')
+            .setDescription(`${message.author} has reached Level ${lvl}!`)
+            .addFields(
+              { name: '✅ XP', value: `${levels[userId].xp} / ${lvl * 600 + 600}` },
+              { name: '📊 Level', value: `${lvl}`, inline: true }
+            )
+            .setColor('#5865F2')
+            .setThumbnail(message.author.displayAvatarURL())
+            .setFooter({ text: 'Keep grinding to reach the top!' });
 
-        await levelChannel.send({ embeds: [embed] });
-
-        await giveLevelRole(message.member, newLevel);
+          await levelChannel.send({ embeds: [embed] });
+        }
+        await giveLevelRole(message.member, lvl);
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 

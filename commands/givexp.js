@@ -29,22 +29,26 @@ function addXP(userId, xpAmount) {
     }
     levels[userId].xp += xpAmount;
 
-    let leveledUp = false;
-    let newLevel = levels[userId].level;
+    let levelsGained = [];
+    let initialLevel = levels[userId].level;
 
     while (true) {
       const xpNeeded = levels[userId].level * 600 + 600;
       if (levels[userId].xp >= xpNeeded) {
         levels[userId].level += 1;
-        newLevel = levels[userId].level;
-        leveledUp = true;
+        levelsGained.push(levels[userId].level);
       } else {
         break;
       }
     }
 
     fs.writeFileSync(levelsPath, JSON.stringify(levels, null, 2), 'utf8');
-    return { leveledUp, newLevel, currentXP: levels[userId].xp };
+    return {
+      leveledUp: levelsGained.length > 0,
+      newLevel: levels[userId].level,
+      levelsGained,
+      currentXP: levels[userId].xp
+    };
   } catch (err) {
     console.error('Failed to update levels.json:', err);
     return { leveledUp: false };
@@ -127,28 +131,34 @@ module.exports = {
 
     await message.reply({ embeds: [replyEmbed] });
 
-    // Always assign the correct level role for their final level
     const member = await message.guild.members.fetch(targetId).catch(() => null);
     if (member) {
-      await giveLevelRole(member, result.newLevel);
-
-      // Handle level-up announcement
       if (result.leveledUp) {
-        const levelChannel = message.client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
-        if (levelChannel) {
-          const embed = new EmbedBuilder()
-            .setTitle('🎉 Level Up!')
-            .setDescription(`${targetUser} has reached Level ${result.newLevel}!`)
-            .addFields(
-              { name: '✅ XP', value: `${result.currentXP} / ${result.newLevel * 600 + 600}` },
-              { name: '📊 Level', value: `${result.newLevel}`, inline: true }
-            )
-            .setColor('#5865F2')
-            .setThumbnail(targetUser.displayAvatarURL())
-            .setFooter({ text: 'Keep grinding to reach the top!' });
+        // Sequentially announce every level gained and apply roles
+        for (const lvl of result.levelsGained) {
+          await giveLevelRole(member, lvl);
 
-          await levelChannel.send({ embeds: [embed] });
+          const levelChannel = message.client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
+          if (levelChannel) {
+            const embed = new EmbedBuilder()
+              .setTitle('🎉 Level Up!')
+              .setDescription(`${targetUser} has reached Level ${lvl}!`)
+              .addFields(
+                { name: '✅ XP', value: `${result.currentXP} / ${lvl * 600 + 600}` },
+                { name: '📊 Level', value: `${lvl}`, inline: true }
+              )
+              .setColor('#5865F2')
+              .setThumbnail(targetUser.displayAvatarURL())
+              .setFooter({ text: 'Keep grinding to reach the top!' });
+
+            await levelChannel.send({ embeds: [embed] });
+            // Small delay to ensure correct ordering in level channel
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
         }
+      } else {
+        // Just make sure they have their current correct level role
+        await giveLevelRole(member, result.newLevel);
       }
     }
   }

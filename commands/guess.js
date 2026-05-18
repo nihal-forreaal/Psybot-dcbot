@@ -31,22 +31,25 @@ function addXP(userId, xpAmount) {
     }
     levels[userId].xp += xpAmount;
 
-    let leveledUp = false;
-    let newLevel = levels[userId].level;
+    let levelsGained = [];
+    let initialLevel = levels[userId].level;
 
     while (true) {
       const xpNeeded = levels[userId].level * 600 + 600;
       if (levels[userId].xp >= xpNeeded) {
         levels[userId].level += 1;
-        newLevel = levels[userId].level;
-        leveledUp = true;
+        levelsGained.push(levels[userId].level);
       } else {
         break;
       }
     }
 
     fs.writeFileSync(levelsPath, JSON.stringify(levels, null, 2), 'utf8');
-    return { leveledUp, newLevel };
+    return {
+      leveledUp: levelsGained.length > 0,
+      newLevel: levels[userId].level,
+      levelsGained
+    };
   } catch (err) {
     console.error('Failed to update levels.json:', err);
     return { leveledUp: false };
@@ -179,10 +182,12 @@ module.exports = {
         }
 
         let leveledUp = false;
+        let levelsGained = [];
         let newLevel = 0;
         if (xpReward > 0) {
           const result = addXP(userId, xpReward);
           leveledUp = result.leveledUp;
+          levelsGained = result.levelsGained || [];
           newLevel = result.newLevel;
         }
 
@@ -199,7 +204,9 @@ module.exports = {
         if (leveledUp) {
           winEmbed.addFields({ name: '🌟 Level Up!', value: `You reached **Level ${newLevel}**! 🚀` });
           if (message.member) {
-            await giveLevelRole(message.member, newLevel);
+            for (const lvl of levelsGained) {
+              await giveLevelRole(message.member, lvl);
+            }
           }
         }
 

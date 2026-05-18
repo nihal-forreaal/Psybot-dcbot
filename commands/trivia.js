@@ -106,22 +106,25 @@ function addXP(userId, xpAmount) {
     }
     levels[userId].xp += xpAmount;
 
-    let leveledUp = false;
-    let newLevel = levels[userId].level;
+    let levelsGained = [];
+    let initialLevel = levels[userId].level;
 
     while (true) {
       const xpNeeded = levels[userId].level * 600 + 600;
       if (levels[userId].xp >= xpNeeded) {
         levels[userId].level += 1;
-        newLevel = levels[userId].level;
-        leveledUp = true;
+        levelsGained.push(levels[userId].level);
       } else {
         break;
       }
     }
 
     fs.writeFileSync(levelsPath, JSON.stringify(levels, null, 2), 'utf8');
-    return { leveledUp, newLevel };
+    return {
+      leveledUp: levelsGained.length > 0,
+      newLevel: levels[userId].level,
+      levelsGained
+    };
   } catch (err) {
     console.error('Failed to update levels.json:', err);
     return { leveledUp: false };
@@ -254,7 +257,7 @@ async function playTrivia(message, userId, streak = 0) {
         multiplier = 1.2;
       }
       const xpReward = Math.round(baseXP * multiplier);
-      const { leveledUp, newLevel } = addXP(userId, xpReward);
+      const { leveledUp, newLevel, levelsGained } = addXP(userId, xpReward);
 
       let streakText = '';
       if (nextStreak >= 5) {
@@ -277,7 +280,9 @@ async function playTrivia(message, userId, streak = 0) {
       if (leveledUp) {
         resultEmbed.addFields({ name: '🌟 Level Up!', value: `You reached **Level ${newLevel}**! 🚀` });
         if (message.member) {
-          await giveLevelRole(message.member, newLevel);
+          for (const lvl of (levelsGained || [])) {
+            await giveLevelRole(message.member, lvl);
+          }
         }
       }
     } else {
