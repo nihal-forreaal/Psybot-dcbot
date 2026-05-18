@@ -128,16 +128,46 @@ module.exports = {
       if (guess === secretNumber) {
         collector.stop('won');
         
-        // Reward 50 XP
-        const xpReward = 50;
-        const { leveledUp, newLevel } = addXP(userId, xpReward);
+        // Dynamic XP Reward based on attempts (more than 10 attempts = no reward)
+        let xpReward = 0;
+        if (attempts === 1) {
+          xpReward = 100;
+        } else if (attempts === 2) {
+          xpReward = 80;
+        } else if (attempts === 3) {
+          xpReward = 60;
+        } else if (attempts === 4) {
+          xpReward = 50;
+        } else if (attempts === 5) {
+          xpReward = 40;
+        } else if (attempts === 6) {
+          xpReward = 30;
+        } else if (attempts === 7) {
+          xpReward = 20;
+        } else if (attempts === 8) {
+          xpReward = 15;
+        } else if (attempts === 9) {
+          xpReward = 10;
+        } else if (attempts === 10) {
+          xpReward = 5;
+        } else {
+          xpReward = 0;
+        }
+
+        let leveledUp = false;
+        let newLevel = 0;
+        if (xpReward > 0) {
+          const result = addXP(userId, xpReward);
+          leveledUp = result.leveledUp;
+          newLevel = result.newLevel;
+        }
 
         const winEmbed = new EmbedBuilder()
           .setTitle('🎉 You Won!')
           .setDescription(
             `Congratulations ${message.author}! You guessed the secret number **${secretNumber}** correctly!\n\n` +
             `📊 **Attempts:** ${attempts}\n` +
-            `🎁 **Reward:** +${xpReward} XP!`
+            `🎁 **Reward:** ${xpReward > 0 ? `+${xpReward} XP!` : 'No XP reward (took more than 10 attempts) 😢'}`
           )
           .setColor('#57F287')
           .setThumbnail(message.author.displayAvatarURL());
