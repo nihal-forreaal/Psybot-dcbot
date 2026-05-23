@@ -264,8 +264,58 @@
       letter-spacing: 1px;
     }
 
-    footer span {
+    /* Creator Link & Tooltip */
+    .creator-link {
       color: var(--primary-color);
+      text-decoration: none;
+      font-weight: 600;
+      position: relative;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .creator-link:hover {
+      text-shadow: 0 0 10px var(--primary-glow);
+      color: var(--text-bright);
+    }
+
+    .creator-link::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 135%;
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      background-color: var(--card-bg);
+      color: var(--text-bright);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      opacity: 0;
+      visibility: hidden;
+      border: 1px solid var(--primary-color);
+      box-shadow: 0 0 10px var(--primary-glow);
+      transition: all 0.3s cubic-bezier(0.165, 0.84, 0.44, 1);
+      pointer-events: none;
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 1px;
+    }
+
+    .creator-link:hover::after {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .heart {
+      color: var(--primary-color);
+      display: inline-block;
+      animation: heartbeat 1.2s infinite;
+    }
+
+    @keyframes heartbeat {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.25); }
     }
 
     /* Animations */
@@ -352,7 +402,7 @@
 
   <!-- Footer -->
   <footer>
-    &copy; 2026 Psybot. Designed with <span>&hearts;</span> for the community.
+    &copy; 2026 Psybot. Designed with <span class="heart">&hearts;</span> by <a href="https://discord.com/users/1105072573580062790" target="_blank" class="creator-link" data-tooltip="Fully Vibe Coded 🚀">Zypher</a>.
   </footer>
 
 </body>
