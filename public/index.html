@@ -329,6 +329,82 @@
       100% { border-color: rgba(255, 51, 51, 0.4); }
     }
 
+    /* YouTube Spotlight Banner */
+    .youtube-spotlight {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      background: rgba(17, 18, 23, 0.85);
+      border: 1px solid rgba(255, 0, 0, 0.2);
+      border-radius: 12px;
+      padding: 20px 30px;
+      margin-bottom: 40px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(255, 0, 0, 0.05);
+      gap: 20px;
+      animation: pulse-yt-border 4s infinite alternate;
+    }
+
+    .yt-glow {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      transform: translateY(-50%);
+      width: 150px;
+      height: 150px;
+      background: radial-gradient(circle, rgba(255, 0, 0, 0.15) 0%, transparent 70%);
+      filter: blur(20px);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .yt-content {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      z-index: 2;
+    }
+
+    .yt-icon {
+      font-size: 2.5rem;
+      text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+    }
+
+    .yt-text h3 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.3rem;
+      color: var(--text-bright);
+      margin-bottom: 5px;
+      letter-spacing: 1px;
+    }
+
+    .yt-text p {
+      font-size: 0.95rem;
+      color: #8892b0;
+    }
+
+    .btn-yt {
+      background-color: #ff0000;
+      color: var(--text-bright);
+      border: 1px solid #ff0000;
+      box-shadow: 0 5px 20px rgba(255, 0, 0, 0.3);
+      z-index: 2;
+      flex-shrink: 0;
+    }
+
+    .btn-yt:hover {
+      background-color: #e60000;
+      box-shadow: 0 8px 25px rgba(255, 0, 0, 0.5);
+      transform: translateY(-2px);
+    }
+
+    @keyframes pulse-yt-border {
+      0% { border-color: rgba(255, 0, 0, 0.15); }
+      100% { border-color: rgba(255, 0, 0, 0.35); }
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       h1 {
@@ -339,6 +415,20 @@
       }
       .btn {
         width: 100%;
+      }
+      .youtube-spotlight {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+        padding: 20px;
+      }
+      .yt-content {
+        flex-direction: column;
+        gap: 10px;
+      }
+      .btn-yt {
+        width: 100%;
+        margin-top: 10px;
       }
     }
   </style>
@@ -358,6 +448,19 @@
       <h1>PSY<span>BOT</span></h1>
       <p class="tagline">The Ultimate Premium Discord Companion</p>
     </header>
+
+    <!-- YouTube Spotlight Banner -->
+    <div class="youtube-spotlight">
+      <div class="yt-glow"></div>
+      <div class="yt-content">
+        <span class="yt-icon">🔴</span>
+        <div class="yt-text">
+          <h3>Psybot Live</h3>
+          <p>Subscribe to our YouTube channel for updates, showcases, and live gameplay streams!</p>
+        </div>
+      </div>
+      <a href="https://www.youtube.com/@psybotlive" target="_blank" class="btn btn-yt">Subscribe Channel</a>
+    </div>
 
     <!-- Features Section -->
     <div class="grid">
