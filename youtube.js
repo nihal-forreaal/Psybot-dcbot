@@ -5,7 +5,7 @@ const { parseStringPromise } = require('xml2js');
 module.exports = {
   async init(client) {
     const channelId = process.env.YT_CHANNEL_ID;
-    const port = parseInt(process.env.YT_PORT, 10) || 3000;
+    const port = parseInt(process.env.PORT, 10) || parseInt(process.env.YT_PORT, 10) || 3000;
     const publicUrl = process.env.PUBLIC_URL;
     const callbackPath = process.env.YT_CALLBACK_PATH || '/youtube/callback';
     const callbackUrl = `${publicUrl}${callbackPath}`;
@@ -14,6 +14,12 @@ module.exports = {
 
     if (!channelId || !publicUrl) {
       console.warn('YouTube webhook not configured: set YT_CHANNEL_ID and PUBLIC_URL in .env');
+      console.log('Starting minimal health check server for Koyeb/Render deployment...');
+      const app = express();
+      app.get('/', (req, res) => res.send('Psybot is active and healthy! 🤖'));
+      app.listen(port, () => {
+        console.log(`Health check server listening on port ${port}`);
+      });
       return;
     }
 
@@ -21,6 +27,9 @@ module.exports = {
 
     const app = express();
     app.use(express.text({ type: '*/*' }));
+
+    // Root path for Koyeb/Render health check verification
+    app.get('/', (req, res) => res.send('Psybot is active and healthy! 🤖'));
 
     app.get(callbackPath, (req, res) => {
       const token = req.query['hub.verify_token'];
