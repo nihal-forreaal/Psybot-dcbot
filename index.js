@@ -1317,12 +1317,16 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         const user = newState.member.user;
         const userId = user.id;
 
-        // Create temporary VC with user's name
+        // Create temporary VC with user's name (locked by default)
         const tempVC = await guild.channels.create({
           name: `🎙️ ${user.username}`,
           type: ChannelType.GuildVoice,
           parent: vcCategoryId,
           permissionOverwrites: [
+            {
+              id: guild.id,
+              deny: [PermissionFlagsBits.Connect],
+            },
             {
               id: userId,
               allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.ManageChannels],
@@ -1347,6 +1351,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             'the quick commands to control access, manage members, and configure your room.\n\n' +
             `🔴 **Room Owner:** <@${userId}>\n` +
             `⚫ **Co-Owners:** *None*\n` +
+            `🔒 **Status:** Locked (by default)\n` +
             `🚨 **Limit:** \`Unlimited\``
           )
           .setColor('#ff3333') // Premium Crimson Red
