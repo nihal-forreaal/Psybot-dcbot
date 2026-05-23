@@ -1332,50 +1332,63 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           createdAt: Date.now(),
         });
 
-        // Send VC Control Panel
+        // Send Premium VC Control Panel (Red & Black Theme)
         const embed = new EmbedBuilder()
-          .setTitle('🎙️ Custom VC Panel')
-          .setDescription('Use the buttons below to control your voice channel:')
-          .setColor('#5865F2')
-          .addFields(
-            { name: '✅ VC Owner', value: `${user.tag}`, inline: true },
-            { name: '👥 Co Owners', value: 'None', inline: true },
-            { name: '🔢 VC Limit', value: '∞ (Unlimited)', inline: true }
+          .setTitle('🎙️ Voice Channel Control Center')
+          .setDescription(
+            'Welcome to your dynamic voice channel dashboard! Use the buttons below or ' +
+            'the quick commands to control access, manage members, and configure your room.\n\n' +
+            `🔴 **Room Owner:** <@${userId}>\n` +
+            `⚫ **Co-Owners:** *None*\n` +
+            `🚨 **Limit:** \`Unlimited\``
           )
-          .setFooter({ text: 'Click buttons to manage your VC' });
+          .setColor('#ff3333') // Premium Crimson Red
+          .addFields(
+            {
+              name: '🖤 Control Commands',
+              value:
+                '▪️ `!kick @user` — Kick a user from your channel\n' +
+                '▪️ `!own2 @user` — Promote a user to co-owner\n' +
+                '▪️ `!access @user` — Grant specific access to a user\n' +
+                '▪️ `!block @user` — Block a user from joining',
+              inline: false,
+            }
+          )
+          .setFooter({ text: 'Psybot Room Manager | Red & Black Edition', iconURL: client.user.displayAvatarURL() })
+          .setTimestamp();
 
         const row1 = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
             .setCustomId(`vc_edit_${userId}`)
-            .setLabel('Edit')
-            .setStyle(ButtonStyle.Success)
-            .setEmoji('🎙️'),
+            .setLabel('Edit Room')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('⚙️'),
           new ButtonBuilder()
             .setCustomId(`vc_coown_${userId}`)
             .setLabel('Co-own')
-            .setStyle(ButtonStyle.Success)
+            .setStyle(ButtonStyle.Secondary)
             .setEmoji('👥'),
           new ButtonBuilder()
             .setCustomId(`vc_lock_${userId}`)
             .setLabel('Lock')
-            .setStyle(ButtonStyle.Success)
+            .setStyle(ButtonStyle.Danger)
             .setEmoji('🔒')
         );
 
         const row2 = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
             .setCustomId(`vc_kick_${userId}`)
-            .setLabel('Kick')
+            .setLabel('Kick User')
             .setStyle(ButtonStyle.Danger)
             .setEmoji('👢'),
           new ButtonBuilder()
             .setCustomId(`vc_access_${userId}`)
-            .setLabel('Access')
-            .setStyle(ButtonStyle.Success)
+            .setLabel('Allow Access')
+            .setStyle(ButtonStyle.Secondary)
             .setEmoji('🔓'),
           new ButtonBuilder()
             .setCustomId(`vc_block_${userId}`)
-            .setLabel('Block')
+            .setLabel('Block User')
             .setStyle(ButtonStyle.Danger)
             .setEmoji('⛔')
         );
