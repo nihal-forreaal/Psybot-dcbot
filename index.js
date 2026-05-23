@@ -766,6 +766,85 @@ client.on('interactionCreate', async interaction => {
 
       return interaction.reply({ content: `✅ ${targetMember} was added to the ticket.`, ephemeral: true });
     }
+
+    if (interaction.customId.startsWith('vc_edit_modal_')) {
+      const userId = interaction.customId.split('_')[3];
+      if (interaction.user.id !== userId) {
+        return interaction.reply({ content: '❌ Only the VC owner can edit the channel.', ephemeral: true });
+      }
+
+      const channel = interaction.member.voice.channel;
+      if (!channel) {
+        return interaction.reply({ content: '❌ You must be in your voice channel to rename it.', ephemeral: true });
+      }
+
+      const newName = interaction.fields.getTextInputValue('vc_new_name');
+      await channel.setName(`🎙️ ${newName}`);
+      return interaction.reply({ content: `✅ Renamed your voice channel to **${newName}**!`, ephemeral: true });
+    }
+
+    if (interaction.customId.startsWith('vc_access_modal_')) {
+      const userId = interaction.customId.split('_')[3];
+      if (interaction.user.id !== userId) {
+        return interaction.reply({ content: '❌ Only the VC owner can manage access.', ephemeral: true });
+      }
+
+      const channel = interaction.member.voice.channel;
+      if (!channel) {
+        return interaction.reply({ content: '❌ You must be in your voice channel to grant access.', ephemeral: true });
+      }
+
+      const userInput = interaction.fields.getTextInputValue('vc_access_user');
+      const targetUserId = parseUserId(userInput);
+      if (!targetUserId) {
+        return interaction.reply({ content: '❌ Please provide a valid user mention or user ID.', ephemeral: true });
+      }
+
+      const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+      if (!targetMember) {
+        return interaction.reply({ content: '❌ Member not found in this server.', ephemeral: true });
+      }
+
+      await channel.permissionOverwrites.edit(targetMember.id, {
+        Connect: true,
+        ViewChannel: true
+      });
+      return interaction.reply({ content: `✅ Granted voice channel access to ${targetMember.user}.`, ephemeral: true });
+    }
+
+    if (interaction.customId.startsWith('vc_block_modal_')) {
+      const userId = interaction.customId.split('_')[3];
+      if (interaction.user.id !== userId) {
+        return interaction.reply({ content: '❌ Only the VC owner can block users.', ephemeral: true });
+      }
+
+      const channel = interaction.member.voice.channel;
+      if (!channel) {
+        return interaction.reply({ content: '❌ You must be in your voice channel to block users.', ephemeral: true });
+      }
+
+      const userInput = interaction.fields.getTextInputValue('vc_block_user');
+      const targetUserId = parseUserId(userInput);
+      if (!targetUserId) {
+        return interaction.reply({ content: '❌ Please provide a valid user mention or user ID.', ephemeral: true });
+      }
+
+      const targetMember = await interaction.guild.members.fetch(targetUserId).catch(() => null);
+      if (!targetMember) {
+        return interaction.reply({ content: '❌ Member not found in this server.', ephemeral: true });
+      }
+
+      await channel.permissionOverwrites.edit(targetMember.id, {
+        Connect: false
+      });
+      
+      // If the blocked user is currently in the channel, kick them
+      if (targetMember.voice.channelId === channel.id) {
+        await targetMember.voice.disconnect('Blocked by VC owner').catch(() => {});
+      }
+
+      return interaction.reply({ content: `❌ Blocked ${targetMember.user} from your voice channel.`, ephemeral: true });
+    }
   }
 
   if (!interaction.isButton()) return;
@@ -1090,7 +1169,7 @@ client.on('interactionCreate', async interaction => {
   }
 
   // VC Panel Buttons
-  const { PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require('discord.js');
+  const { PermissionFlagsBits, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder, ActionRowBuilder } = require('discord.js');
 
   if (interaction.customId.startsWith('vc_lock_')) {
     const userId = interaction.customId.split('_')[2];
@@ -1156,10 +1235,21 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ You must be in a voice channel.', ephemeral: true });
     }
 
-    interaction.reply({
-      content: '🔓 Type a user mention to give access (e.g., @username or user ID):',
-      ephemeral: true
-    });
+    const modal = new ModalBuilder()
+      .setCustomId(`vc_access_modal_${userId}`)
+      .setTitle('🔓 Grant Room Access');
+
+    const userInput = new TextInputBuilder()
+      .setCustomId('vc_access_user')
+      .setLabel('User ID or Mention')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('e.g., @username or user ID')
+      .setRequired(true);
+
+    const firstActionRow = new ActionRowBuilder().addComponents(userInput);
+    modal.addComponents(firstActionRow);
+
+    await interaction.showModal(modal);
   }
 
   if (interaction.customId.startsWith('vc_block_')) {
@@ -1173,10 +1263,21 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ You must be in a voice channel.', ephemeral: true });
     }
 
-    interaction.reply({
-      content: '⛔ Type a user mention to block (e.g., @username or user ID):',
-      ephemeral: true
-    });
+    const modal = new ModalBuilder()
+      .setCustomId(`vc_block_modal_${userId}`)
+      .setTitle('⛔ Block User from Room');
+
+    const userInput = new TextInputBuilder()
+      .setCustomId('vc_block_user')
+      .setLabel('User ID or Mention')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('e.g., @username or user ID')
+      .setRequired(true);
+
+    const firstActionRow = new ActionRowBuilder().addComponents(userInput);
+    modal.addComponents(firstActionRow);
+
+    await interaction.showModal(modal);
   }
 
   if (interaction.customId.startsWith('vc_edit_')) {
@@ -1190,10 +1291,22 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ You must be in a voice channel.', ephemeral: true });
     }
 
-    interaction.reply({
-      content: '🎙️ Type the new name for your VC (max 100 characters):',
-      ephemeral: true
-    });
+    const modal = new ModalBuilder()
+      .setCustomId(`vc_edit_modal_${userId}`)
+      .setTitle('🎙️ Edit Voice Room Name');
+
+    const nameInput = new TextInputBuilder()
+      .setCustomId('vc_new_name')
+      .setLabel('New Room Name')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter new room name')
+      .setMaxLength(100)
+      .setRequired(true);
+
+    const firstActionRow = new ActionRowBuilder().addComponents(nameInput);
+    modal.addComponents(firstActionRow);
+
+    await interaction.showModal(modal);
   }
 });
 
@@ -1307,6 +1420,26 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       }
     } catch (err) {
       console.error('Failed to send voice channel join log:', err);
+    }
+
+    // Custom VC Join Notification
+    if (createVCChannelId && newState.channel.id !== createVCChannelId) {
+      let customVCOwnerId = null;
+      for (const [uid, data] of tempVCs.entries()) {
+        if (uid.startsWith('voice_')) continue;
+        if (data && data.vcId === newState.channel.id) {
+          customVCOwnerId = uid;
+          break;
+        }
+      }
+
+      if (customVCOwnerId) {
+        try {
+          await newState.channel.send(`👋 Welcome ${newState.member}! You have joined <@${customVCOwnerId}>'s room.`);
+        } catch (err) {
+          console.error('Failed to send welcome message to custom VC text chat:', err);
+        }
+      }
     }
 
     // Check if they joined the creator channel
