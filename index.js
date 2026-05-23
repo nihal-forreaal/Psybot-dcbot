@@ -1615,11 +1615,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       if (tempVCData) {
         const channel = oldState.guild.channels.cache.get(tempVCData.vcId);
         if (channel) {
-          // Delete the temp VC if it's empty
-          if (channel.members.size === 0) {
-            await channel.delete();
-            console.log(`🗑️ Deleted empty temp VC`);
-          }
+          // Delete the temp VC immediately when owner leaves
+          await channel.delete().catch(err => console.error('Failed to delete temp VC on leave:', err));
+          console.log(`🗑️ Deleted temp VC because owner left`);
         }
         tempVCs.delete(userId);
       }
@@ -1637,9 +1635,9 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       // If they left their temp VC and joined another
       if (tempVCData && oldState.channel.id === tempVCData.vcId) {
         const channel = oldState.guild.channels.cache.get(tempVCData.vcId);
-        if (channel && channel.members.size === 0) {
-          await channel.delete();
-          console.log(`🗑️ Deleted empty temp VC`);
+        if (channel) {
+          await channel.delete().catch(err => console.error('Failed to delete temp VC on switch:', err));
+          console.log(`🗑️ Deleted temp VC because owner left`);
         }
         tempVCs.delete(userId);
       }
