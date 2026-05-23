@@ -16,15 +16,27 @@ module.exports = {
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('📋 Support Ticket System')
-      .setDescription('Click the button below to create a support ticket.')
-      .setColor('#f25858')
-      .setFooter({ text: 'Support team will assist you shortly' });
+      .setTitle('🎫 Support Ticket Portal')
+      .setDescription(
+        'Welcome to the **Psybot Support Center**. If you require assistance, please click the button below to initiate a private support ticket with our server staff.\n\n' +
+        '🚨 **Ticket Guidelines:**\n' +
+        '▪️ State your issue or question clearly in your first message.\n' +
+        '▪️ Attach relevant screenshots or logs if applicable.\n' +
+        '▪️ Do not ping staff; a representative will assist you shortly.\n' +
+        '▪️ Abuse or spamming of tickets will lead to a temporary blacklist.'
+      )
+      .setColor('#ff3333') // Crimson Red to match red & black theme
+      .addFields(
+        { name: '🕒 Service Hours', value: '`24/7 Availability`', inline: true },
+        { name: '📁 Topics Handled', value: '`General Help`, `Appeals`, `Bug Reports`', inline: true }
+      )
+      .setFooter({ text: 'Psybot Support Services', iconURL: message.client.user.displayAvatarURL() })
+      .setTimestamp();
 
     const button = new ButtonBuilder()
       .setCustomId('create_ticket')
-      .setLabel('Open Ticket')
-      .setStyle(ButtonStyle.Primary)
+      .setLabel('Create Support Ticket')
+      .setStyle(ButtonStyle.Danger) // Danger (Red) for red/black theme
       .setEmoji('🎫');
 
     const row = new ActionRowBuilder().addComponents(button);

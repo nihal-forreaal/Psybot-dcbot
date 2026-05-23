@@ -258,25 +258,32 @@ function parseUserId(input) {
 function buildTicketEmbed(userId, ticketId, claimedBy, staffMentions) {
   const { EmbedBuilder } = require('discord.js');
   const embed = new EmbedBuilder()
-    .setTitle('📋 Support Ticket')
-    .setDescription(`Hello <@${userId}>, a staff member will be with you shortly.`)
-    .setColor('#3ba55d')
-    .addFields(
-      { name: 'Ticket ID', value: ticketId, inline: false }
+    .setTitle('📋 Support Ticket Opened')
+    .setDescription(
+      `Hello <@${userId}>, welcome to your private support session.\n\n` +
+      `▪️ **Ticket ID:** \`${ticketId}\`\n` +
+      `▪️ **Status:** ${claimedBy ? `Claimed by <@${claimedBy}>` : '`Awaiting Staff`🔑'}\n\n` +
+      `*Please describe your issue or question in detail here. A representative will join and assist you shortly.*`
     )
-    .setFooter({ text: 'Please wait while support joins the ticket.' });
+    .setColor('#ff3333') // Crimson Red
+    .setFooter({ text: 'Psybot Support Services', iconURL: client.user.displayAvatarURL() })
+    .setTimestamp();
 
   if (claimedBy) {
     embed.addFields([
-      { name: 'Claimed By', value: `<@${claimedBy}>`, inline: true },
-      { name: 'Claim Time', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+      { name: '🔴 Claimed By', value: `<@${claimedBy}>`, inline: true },
+      { name: '⚫ Claim Time', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
     ]);
   }
 
-  if (staffMentions) {
-    embed.setDescription(`Hello <@${userId}>, ${staffMentions}
-
-A support member will be with you shortly.`);
+  if (staffMentions && !claimedBy) {
+    embed.setDescription(
+      `Hello <@${userId}>, welcome to your private support session.\n\n` +
+      `▪️ **Ticket ID:** \`${ticketId}\`\n` +
+      `▪️ **Status:** \`Awaiting Staff\` 🔴\n\n` +
+      `*Please describe your issue or question in detail here. A representative will join and assist you shortly.*\n\n` +
+      `🔔 **Staff Paged:** ${staffMentions}`
+    );
   }
 
   return embed;
@@ -287,27 +294,27 @@ function buildTicketButtons(claimed) {
 
   const claimButton = new ButtonBuilder()
     .setCustomId('claim_ticket')
-    .setLabel(claimed ? 'Claimed' : 'Claim Ticket')
-    .setStyle(ButtonStyle.Success)
+    .setLabel(claimed ? 'Ticket Claimed' : 'Claim Ticket')
+    .setStyle(claimed ? ButtonStyle.Secondary : ButtonStyle.Danger) // Red if active, Grey if claimed
     .setEmoji('🛎️')
     .setDisabled(Boolean(claimed));
 
   const transferButton = new ButtonBuilder()
     .setCustomId('transfer_ticket')
     .setLabel('Transfer')
-    .setStyle(ButtonStyle.Primary)
+    .setStyle(ButtonStyle.Secondary) // Grey/Black
     .setEmoji('🔁');
 
   const addUserButton = new ButtonBuilder()
     .setCustomId('add_user_ticket')
     .setLabel('Add User')
-    .setStyle(ButtonStyle.Success)
+    .setStyle(ButtonStyle.Secondary) // Grey/Black
     .setEmoji('➕');
 
   const closeButton = new ButtonBuilder()
     .setCustomId('close_ticket')
     .setLabel('Close Ticket')
-    .setStyle(ButtonStyle.Danger)
+    .setStyle(ButtonStyle.Danger) // Crimson Red
     .setEmoji('🔒');
 
   return new ActionRowBuilder().addComponents(claimButton, transferButton, addUserButton, closeButton);
