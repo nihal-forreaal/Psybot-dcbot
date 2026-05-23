@@ -2,12 +2,13 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
+const levelsUtil = require('./levelsUtil');
 
 const prefix = process.env.PREFIX || '!';
-const levelsPath = path.join(__dirname, 'levels.json');
 const ticketsPath = path.join(__dirname, 'tickets.json');
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '1505164182767800411';
+const AI_CATEGORY_ID = process.env.AI_CATEGORY_ID || '1506060632531927172';
 const TICKET_PANEL_CHANNEL_ID = process.env.TICKET_PANEL_CHANNEL_ID || '1505164021186433075';
 const LEVEL_SAVE_DELAY_MS = 5000;
 const MAX_FAKE_REPLIES = 5;
@@ -19,7 +20,12 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
-    GatewayIntentBits.GuildPresences
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.DirectMessages
+  ],
+  partials: [
+    Partials.Channel,
+    Partials.Message
   ]
 });
 
@@ -37,7 +43,7 @@ const onReady = async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
   for (const guild of client.guilds.cache.values()) {
-    await ensureLevelRoles(guild);
+    await levelsUtil.ensureLevelRoles(guild);
   }
 
   // Register slash commands for each guild
@@ -195,7 +201,7 @@ const onReady = async () => {
   }, 24 * 60 * 60 * 1000); // Every 24 hours
 };
 
-client.once('ready', onReady);
+client.once('clientReady', onReady);
 
 client.on('guildMemberAdd', async member => {
   try {
@@ -224,89 +230,7 @@ client.on('guildMemberAdd', async member => {
   }
 });
 
-const LEVEL_ROLE_REWARDS = [
-  { level: 1, name: 'Nobby 1' },
-  { level: 2, name: 'Normie 2' },
-  { level: 5, name: 'Rookie 5' },
-  { level: 10, name: 'Grinder 10' },
-  { level: 15, name: 'Sweaty 15' },
-  { level: 20, name: 'Pro 20' },
-  { level: 30, name: 'Elite 30' },
-  { level: 35, name: 'Legend 35' },
-  { level: 40, name: 'Mythic 40' },
-  { level: 50, name: 'Godmode 50' },
-];
-
-// Helper function to get role ID for a level
-function getLevelRoleId(level) {
-  const roleIds = process.env.LEVEL_ROLE_IDS || '';
-  const roleMap = {};
-  
-  roleIds.split(',').forEach(pair => {
-    const [lvl, id] = pair.split(':');
-    roleMap[parseInt(lvl)] = id;
-  });
-
-  return roleMap[level] || null;
-}
-
-function getLevelRoleReward(level) {
-  return LEVEL_ROLE_REWARDS.find(reward => reward.level === level) || null;
-}
-
-async function findOrCreateLevelRole(guild, reward) {
-  const configuredRoleId = getLevelRoleId(reward.level);
-  if (configuredRoleId) {
-    const configuredRole = await guild.roles.fetch(configuredRoleId).catch(() => null);
-    if (configuredRole) return configuredRole;
-  }
-
-  const roles = await guild.roles.fetch();
-  const existingRole = roles.find(role => role.name.toLowerCase() === reward.name.toLowerCase());
-  if (existingRole) return existingRole;
-
-  return guild.roles.create({
-    name: reward.name,
-    reason: `Level ${reward.level} reward role`,
-  });
-}
-
-async function giveLevelRole(member, level) {
-  const reward = getLevelRoleReward(level);
-  if (!reward) return;
-
-  try {
-    const role = await findOrCreateLevelRole(member.guild, reward);
-    if (role) {
-      if (!member.roles.cache.has(role.id)) {
-        await member.roles.add(role);
-      }
-
-      // Remove all OTHER level roles from the member
-      for (const r of LEVEL_ROLE_REWARDS) {
-        if (r.level !== level) {
-          const otherRole = await findOrCreateLevelRole(member.guild, r);
-          if (otherRole && member.roles.cache.has(otherRole.id)) {
-            await member.roles.remove(otherRole).catch(() => null);
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error(`Error managing level roles for ${member.user.tag}:`, err);
-  }
-}
-
-async function ensureLevelRoles(guild) {
-  try {
-    for (const reward of LEVEL_ROLE_REWARDS) {
-      await findOrCreateLevelRole(guild, reward);
-    }
-    console.log(`Level roles ready in ${guild.name}`);
-  } catch (err) {
-    console.error(`Error creating level roles in ${guild.name}:`, err);
-  }
-}
+// Local Level system helpers removed. Using levelsUtil.js instead.
 
 function removeTicketByChannel(channelId) {
   const tickets = readJsonFile(ticketsPath, {});
@@ -405,56 +329,14 @@ function writeJsonFile(filePath, data) {
   fs.renameSync(tempPath, filePath);
 }
 
-let levelsCache = null;
-let levelsSaveTimer = null;
-let levelsDirty = false;
-
-function getLevels() {
-  if (!levelsCache) {
-    levelsCache = readJsonFile(levelsPath, {});
-  }
-  return levelsCache;
-}
-
-function saveLevelsNow() {
-  if (!levelsDirty || !levelsCache) return;
-  writeJsonFile(levelsPath, levelsCache);
-  levelsDirty = false;
-}
-
-function scheduleLevelsSave() {
-  levelsDirty = true;
-  if (levelsSaveTimer) return;
-
-  levelsSaveTimer = setTimeout(() => {
-    levelsSaveTimer = null;
-    try {
-      saveLevelsNow();
-    } catch (err) {
-      console.error('Failed to save levels:', err);
-    }
-  }, LEVEL_SAVE_DELAY_MS);
-
-  if (typeof levelsSaveTimer.unref === 'function') {
-    levelsSaveTimer.unref();
-  }
-}
-
-function flushLevelsBeforeExit() {
-  try {
-    saveLevelsNow();
-  } catch (err) {
-    console.error('Failed to save levels before exit:', err);
-  }
-}
+// Local Levels cache logic removed. Utilizing levelsUtil.js for reliable updates.
 
 process.once('SIGINT', () => {
-  flushLevelsBeforeExit();
   process.exit(0);
 });
 
 process.once('SIGTERM', () => {
-  flushLevelsBeforeExit();
+  levelsUtil.saveLevelsSync();
   process.exit(0);
 });
 
@@ -468,6 +350,72 @@ try {
 
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
+  console.log(`[MESSAGE] Received from ${message.author.tag} (${message.author.id}) in ${message.guild?.name || 'DM'}: "${message.content}"`);
+
+  // AI Reply Handler: If a user replies to any of Psybot's messages, respond using Psybot AI!
+  if (message.reference && message.reference.messageId && !message.content.startsWith(prefix)) {
+    try {
+      const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
+      if (referencedMessage.author.id === client.user.id) {
+        const askCommand = client.commands.get('ask');
+        if (askCommand) {
+          const promptArgs = message.content.trim().split(/\s+/);
+          await askCommand.execute(message, promptArgs);
+          return;
+        }
+      }
+    } catch (err) {
+      // Ignore fetch errors (e.g. if the message was deleted)
+    }
+  }
+
+  // Private AI Channel handler
+  if (message.channel.name && message.channel.name.startsWith('ai-chat-')) {
+    const aiChannelsPath = path.join(__dirname, 'ai_channels.json');
+    const aiChannels = readJsonFile(aiChannelsPath, {});
+    const channelInfo = aiChannels[message.channel.id];
+
+    if (message.content.trim().toLowerCase() === '!end') {
+      if (channelInfo) {
+        channelInfo.endRequested = true;
+        channelInfo.endTime = Date.now();
+        writeJsonFile(aiChannelsPath, aiChannels);
+
+        const { EmbedBuilder } = require('discord.js');
+        const endEmbed = new EmbedBuilder()
+          .setTitle('🛑 Session End Scheduled')
+          .setDescription('This private AI chat session has been scheduled to close.\nThe channel will be **automatically deleted in 10 minutes**.')
+          .setColor('#ff3333')
+          .setTimestamp();
+        await message.reply({ embeds: [endEmbed] }).catch(() => {});
+      }
+      return;
+    }
+
+    if (channelInfo) {
+      if (channelInfo.endRequested) {
+        await message.reply('⚠️ *This AI chat session has ended and is scheduled for deletion. No further messages are accepted.*').catch(() => {});
+        return;
+      }
+
+      channelInfo.lastActivity = Date.now();
+      channelInfo.warned = false;
+      writeJsonFile(aiChannelsPath, aiChannels);
+    }
+
+    if (!message.content.startsWith(prefix)) {
+      const askCommand = client.commands.get('ask');
+      if (askCommand) {
+        const promptArgs = message.content.trim().split(/\s+/);
+        try {
+          await askCommand.execute(message, promptArgs);
+        } catch (err) {
+          console.error('Error executing AI response in private channel:', err);
+        }
+        return;
+      }
+    }
+  }
 
   // Filter messages in the games channel (1506009762901524661)
   if (message.channel.id === '1506009762901524661') {
@@ -517,7 +465,7 @@ client.on('messageCreate', async message => {
   // Log all messages to the specified channel, excluding the logs channel and the games channel (1506009762901524661)
   const logChannelId = '1505905409003884634';
   const gamesChannelId = '1506009762901524661';
-  if (message.channel.id !== logChannelId && message.channel.id !== gamesChannelId) {
+  if (message.guild && message.channel.id !== logChannelId && message.channel.id !== gamesChannelId) {
     try {
       const logChannel = client.channels.cache.get(logChannelId);
       if (logChannel) {
@@ -567,55 +515,38 @@ client.on('messageCreate', async message => {
   }
 
   // Level System - Give XP for messages
-  try {
-    const levels = getLevels();
-    const userId = message.author.id;
-    const xpGain = Math.floor(Math.random() * 15) + 5; // 5-20 XP per message
+  if (message.guild) {
+    try {
+      const userId = message.author.id;
+      const xpGain = Math.floor(Math.random() * 15) + 5; // 5-20 XP per message
 
-    if (!levels[userId]) {
-      levels[userId] = { xp: 0, level: 0 };
-    }
+      const result = levelsUtil.addXP(userId, xpGain);
 
-    levels[userId].xp += xpGain;
+      if (result && result.leveledUp) {
+        const levelChannel = client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
+        for (const lvl of result.levelsGained) {
+          if (levelChannel) {
+            const { EmbedBuilder } = require('discord.js');
+            const embed = new EmbedBuilder()
+              .setTitle('🎉 Level Up!')
+              .setDescription(`${message.author} has reached Level ${lvl}!`)
+              .addFields(
+                { name: '✅ XP', value: `${result.currentXP} / ${lvl * 600 + 600}` },
+                { name: '📊 Level', value: `${lvl}`, inline: true }
+              )
+              .setColor('#5865F2')
+              .setThumbnail(message.author.displayAvatarURL())
+              .setFooter({ text: 'Keep grinding to reach the top!' });
 
-    // Check for level up
-    let levelsGained = [];
-    while (true) {
-      const xpNeeded = levels[userId].level * 600 + 600; // 600 XP per level
-      if (levels[userId].xp >= xpNeeded) {
-        levels[userId].level += 1;
-        levelsGained.push(levels[userId].level);
-      } else {
-        break;
-      }
-    }
-
-    if (levelsGained.length > 0) {
-      const levelChannel = client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
-      for (const lvl of levelsGained) {
-        if (levelChannel) {
-          const { EmbedBuilder } = require('discord.js');
-          const embed = new EmbedBuilder()
-            .setTitle('🎉 Level Up!')
-            .setDescription(`${message.author} has reached Level ${lvl}!`)
-            .addFields(
-              { name: '✅ XP', value: `${levels[userId].xp} / ${lvl * 600 + 600}` },
-              { name: '📊 Level', value: `${lvl}`, inline: true }
-            )
-            .setColor('#5865F2')
-            .setThumbnail(message.author.displayAvatarURL())
-            .setFooter({ text: 'Keep grinding to reach the top!' });
-
-          await levelChannel.send({ embeds: [embed] });
+            await levelChannel.send({ embeds: [embed] });
+          }
+          await levelsUtil.giveLevelRole(message.member, lvl);
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
-        await giveLevelRole(message.member, lvl);
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
+    } catch (err) {
+      console.error('Level system error:', err);
     }
-
-    scheduleLevelsSave();
-  } catch (err) {
-    console.error('Level system error:', err);
   }
 
   if (false) {
@@ -911,6 +842,78 @@ client.on('interactionCreate', async interaction => {
         }).catch(() => {});
       }
     }
+  }
+
+  if (interaction.customId === 'create_ai_chat') {
+    await interaction.deferReply({ ephemeral: true });
+    const { ChannelType, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+
+    const userId = interaction.user.id;
+    const guild = interaction.guild;
+    const channelName = `ai-chat-${interaction.user.username.substring(0, 15)}`.toLowerCase();
+
+    const aiPermissionOverwrites = [
+      {
+        id: guild.id,
+        deny: [PermissionFlagsBits.ViewChannel],
+      },
+      {
+        id: userId,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+      },
+      {
+        id: client.user.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+      }
+    ];
+
+    try {
+      // Create the text channel under the ticket category (or root)
+      const aiChannel = await guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        parent: AI_CATEGORY_ID,
+        topic: `Private AI Chat for ${interaction.user.username} (${userId})`,
+        permissionOverwrites: aiPermissionOverwrites,
+      });
+
+      // Save to ai_channels.json persistent state
+      const aiChannelsPath = path.join(__dirname, 'ai_channels.json');
+      const aiChannels = readJsonFile(aiChannelsPath, {});
+      aiChannels[aiChannel.id] = {
+        channelId: aiChannel.id,
+        userId: userId,
+        lastActivity: Date.now(),
+        warned: false
+      };
+      writeJsonFile(aiChannelsPath, aiChannels);
+
+      // Welcome Embed
+      const welcomeEmbed = new EmbedBuilder()
+        .setTitle('💬 Your Private AI Workspace')
+        .setDescription(
+          `Welcome ${interaction.user} to your premium private AI chat!\n\n` +
+          `Simply **type any message** in this channel, and Psybot AI will reply instantly (no prefix needed).\n\n` +
+          `⚠️ **Inactivity policy:**\n` +
+          `• This channel will **self-destruct after 1 hour of silence**.\n` +
+          `• You will receive a warning in this channel at **50 minutes**.`
+        )
+        .setColor('#00d0ff')
+        .setFooter({ text: 'Psybot AI Session Active' })
+        .setTimestamp();
+
+      await aiChannel.send({ embeds: [welcomeEmbed] });
+
+      await interaction.editReply({
+        content: `✅ Your private AI chat channel has been created! <#${aiChannel.id}>`,
+      });
+    } catch (error) {
+      console.error('Error creating private AI channel:', error);
+      await interaction.editReply({
+        content: '❌ Failed to create your private AI chat. Please contact an admin.',
+      }).catch(() => {});
+    }
+    return;
   }
 
   if (interaction.customId === 'transfer_ticket') {
@@ -1420,43 +1423,31 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         const timeSpent = Math.floor((Date.now() - voiceData.joinTime) / 60000); // in minutes
         if (timeSpent > 0) {
           const xpGain = timeSpent * 15; // 15 XP per minute
-          const levels = getLevels();
+          const result = levelsUtil.addXP(userId, xpGain);
 
-          if (!levels[userId]) {
-            levels[userId] = { xp: 0, level: 0 };
-          }
-
-          levels[userId].xp += xpGain;
-
-          // Check for level up
-          const xpNeeded = levels[userId].level * 600 + 600;
-          if (levels[userId].xp >= xpNeeded) {
-            levels[userId].level += 1;
-            const newLevel = levels[userId].level;
-
-            // Send level up announcement
+          if (result && result.leveledUp) {
             const levelChannel = client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
-            if (levelChannel) {
-              const { EmbedBuilder } = require('discord.js');
-              const user = newState.member.user;
-              const embed = new EmbedBuilder()
-                .setTitle('🎉 Level Up!')
-                .setDescription(`${user} has reached Level ${newLevel}!`)
-                .addFields(
-                  { name: '✅ XP', value: `${levels[userId].xp} / ${newLevel * 600 + 600}` },
-                  { name: '📊 Level', value: `${newLevel}`, inline: true }
-                )
-                .setColor('#5865F2')
-                .setThumbnail(user.displayAvatarURL())
-                .setFooter({ text: 'Keep grinding to reach the top!' });
+            for (const lvl of result.levelsGained) {
+              if (levelChannel) {
+                const { EmbedBuilder } = require('discord.js');
+                const user = newState.member.user;
+                const embed = new EmbedBuilder()
+                  .setTitle('🎉 Level Up!')
+                  .setDescription(`${user} has reached Level ${lvl}!`)
+                  .addFields(
+                    { name: '✅ XP', value: `${result.currentXP} / ${lvl * 600 + 600}` },
+                    { name: '📊 Level', value: `${lvl}`, inline: true }
+                  )
+                  .setColor('#5865F2')
+                  .setThumbnail(user.displayAvatarURL())
+                  .setFooter({ text: 'Keep grinding to reach the top!' });
 
-              await levelChannel.send({ embeds: [embed] });
-
-              await giveLevelRole(newState.member, newLevel);
+                await levelChannel.send({ embeds: [embed] });
+              }
+              await levelsUtil.giveLevelRole(newState.member, lvl);
+              await new Promise(resolve => setTimeout(resolve, 500));
             }
           }
-
-          scheduleLevelsSave();
         }
         tempVCs.delete(`voice_${userId}`);
       }
@@ -1584,4 +1575,73 @@ client.on('guildMemberRemove', async (member) => {
   }
 });
 
+// Private AI Channel background inactivity manager
+setInterval(async () => {
+  try {
+    const aiChannelsPath = path.join(__dirname, 'ai_channels.json');
+    if (!fs.existsSync(aiChannelsPath)) return;
+
+    const aiChannels = readJsonFile(aiChannelsPath, {});
+    const now = Date.now();
+    const { EmbedBuilder } = require('discord.js');
+
+    for (const channelId in aiChannels) {
+      const info = aiChannels[channelId];
+
+      // Try to fetch channel from cache or API
+      const channel = client.channels.cache.get(channelId) || await client.channels.fetch(channelId).catch(() => null);
+      if (!channel) {
+        // Channel has been manually deleted, clean up our registry
+        delete aiChannels[channelId];
+        writeJsonFile(aiChannelsPath, aiChannels);
+        continue;
+      }
+
+      // If !end command was used, handle the 10-minute deletion countdown
+      if (info.endRequested) {
+        const elapsedEndMinutes = (now - info.endTime) / 60000;
+        if (elapsedEndMinutes >= 10) {
+          await channel.send('🛑 *Closing and deleting private AI channel as requested...*').catch(() => {});
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          await channel.delete('Private AI session ended by user').catch(() => {});
+
+          delete aiChannels[channelId];
+          writeJsonFile(aiChannelsPath, aiChannels);
+        }
+        continue; // Skip the standard inactivity checks
+      }
+
+      const elapsedMinutes = (now - info.lastActivity) / 60000;
+
+      // 50 minutes of inactivity warning
+      if (elapsedMinutes >= 50 && !info.warned) {
+        info.warned = true;
+        writeJsonFile(aiChannelsPath, aiChannels);
+
+        const warningEmbed = new EmbedBuilder()
+          .setTitle('⚠️ Private AI Inactivity Warning')
+          .setDescription(`🤖 <@${info.userId}>, your private AI session has been idle for **50 minutes**.\nThis channel will be **automatically deleted in 10 minutes** to conserve server resources unless you send another message.`)
+          .setColor('#ffaa00')
+          .setTimestamp();
+
+        await channel.send({ content: `<@${info.userId}>`, embeds: [warningEmbed] }).catch(() => {});
+      }
+
+      // 60 minutes of inactivity deletion
+      if (elapsedMinutes >= 60) {
+        await channel.send('🛑 *Closing and deleting private AI channel due to 1 hour of inactivity...*').catch(() => {});
+        // Safe timeout before delete
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        await channel.delete('Private AI session idle for 1 hour').catch(() => {});
+
+        delete aiChannels[channelId];
+        writeJsonFile(aiChannelsPath, aiChannels);
+      }
+    }
+  } catch (err) {
+    console.error('Private AI inactivity manager error:', err);
+  }
+}, 60000);
+
 client.login(process.env.TOKEN);
+

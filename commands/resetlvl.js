@@ -1,23 +1,4 @@
-const fs = require('fs');
-const path = require('path');
-
-const levelsPath = path.join(__dirname, '..', 'levels.json');
-
-function readLevels() {
-  try {
-    const content = fs.readFileSync(levelsPath, 'utf8').trim();
-    return content ? JSON.parse(content) : {};
-  } catch (err) {
-    console.error('Failed to read levels.json:', err.message);
-    return {};
-  }
-}
-
-function writeLevels(levels) {
-  const tempPath = `${levelsPath}.tmp`;
-  fs.writeFileSync(tempPath, JSON.stringify(levels, null, 2));
-  fs.renameSync(tempPath, levelsPath);
-}
+const levelsUtil = require('../levelsUtil');
 
 module.exports = {
   name: 'resetlvl',
@@ -32,9 +13,7 @@ module.exports = {
       return message.reply('Please mention a user. Example: `!resetlvl @person`');
     }
 
-    const levels = readLevels();
-    levels[target.id] = { xp: 0, level: 0 };
-    writeLevels(levels);
+    levelsUtil.resetLevel(target.id);
 
     return message.reply(`Reset level and XP for ${target}.`);
   },

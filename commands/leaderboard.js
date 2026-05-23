@@ -1,22 +1,11 @@
 const { EmbedBuilder } = require('discord.js');
-const fs = require('fs');
-const path = require('path');
-
-function readLevels() {
-  try {
-    const content = fs.readFileSync(path.join(__dirname, '..', 'levels.json'), 'utf8').trim();
-    return content ? JSON.parse(content) : {};
-  } catch (err) {
-    console.error('Failed to read levels.json:', err.message);
-    return {};
-  }
-}
+const levelsUtil = require('../levelsUtil');
 
 module.exports = {
   name: 'leaderboard',
   description: 'Show top 10 users by level',
   async execute(message) {
-    const levels = readLevels();
+    const levels = levelsUtil.getLevels();
 
     // Sort by level then by XP
     const sorted = Object.entries(levels)

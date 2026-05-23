@@ -13,12 +13,14 @@ module.exports = {
     }
 
     const fs = require('fs');
-    const ticketsFile = JSON.parse(fs.readFileSync('./tickets.json', 'utf8'));
+    const path = require('path');
+    const ticketsPath = path.join(__dirname, '../tickets.json');
+    const ticketsFile = JSON.parse(fs.readFileSync(ticketsPath, 'utf8'));
     const ticketEntry = Object.entries(ticketsFile).find(([, ticket]) => ticket.channelId === message.channel.id);
 
     if (ticketEntry) {
       delete ticketsFile[ticketEntry[0]];
-      fs.writeFileSync('./tickets.json', JSON.stringify(ticketsFile, null, 2));
+      fs.writeFileSync(ticketsPath, JSON.stringify(ticketsFile, null, 2));
     }
 
     message.reply('✅ Ticket closed and channel will be deleted in 5 seconds...');
