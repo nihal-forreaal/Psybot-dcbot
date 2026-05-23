@@ -17,47 +17,47 @@ module.exports = {
       return message.reply('❌ You can only manage your own voice channel.');
     }
 
-    // Create Premium VC Panel Embed
+    // Create Premium VC Panel Embed (Red & Black Theme)
     const embed = new EmbedBuilder()
       .setTitle('🎙️ Voice Channel Control Center')
       .setDescription(
         'Welcome to your dynamic voice channel dashboard! Use the buttons below or ' +
         'the quick commands to control access, manage members, and configure your room.\n\n' +
-        `👑 **Room Owner:** ${message.author}\n` +
-        `👥 **Co-Owners:** *None*\n` +
-        `🔢 **Limit:** \`Unlimited\``
+        `🔴 **Room Owner:** ${message.author}\n` +
+        `⚫ **Co-Owners:** *None*\n` +
+        `🚨 **Limit:** \`Unlimited\``
       )
-      .setColor('#00d0ff') // Cyber cyan premium accent
+      .setColor('#ff3333') // Premium Crimson Red
       .addFields(
         {
-          name: '🛠️ Quick Chat Commands',
+          name: '🖤 Control Commands',
           value:
-            '• `!kick @user` — Kick a user from your channel\n' +
-            '• `!own2 @user` — Promote a user to co-owner\n' +
-            '• `!access @user` — Grant specific access to a user\n' +
-            '• `!block @user` — Block a user from joining',
+            '▪️ `!kick @user` — Kick a user from your channel\n' +
+            '▪️ `!own2 @user` — Promote a user to co-owner\n' +
+            '▪️ `!access @user` — Grant specific access to a user\n' +
+            '▪️ `!block @user` — Block a user from joining',
           inline: false,
         }
       )
-      .setFooter({ text: 'Psybot Room Manager', iconURL: message.client.user.displayAvatarURL() })
+      .setFooter({ text: 'Psybot Room Manager | Red & Black Edition', iconURL: message.client.user.displayAvatarURL() })
       .setTimestamp();
 
-    // Create styled buttons
+    // Create styled buttons (Red & Black Theme)
     const row1 = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`vc_edit_${userId}`)
         .setLabel('Edit Room')
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Secondary) // Black/Grey
         .setEmoji('⚙️'),
       new ButtonBuilder()
         .setCustomId(`vc_coown_${userId}`)
         .setLabel('Co-own')
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Secondary) // Black/Grey
         .setEmoji('👥'),
       new ButtonBuilder()
         .setCustomId(`vc_lock_${userId}`)
         .setLabel('Lock')
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Danger) // Crimson Red
         .setEmoji('🔒')
     );
 
@@ -65,17 +65,17 @@ module.exports = {
       new ButtonBuilder()
         .setCustomId(`vc_kick_${userId}`)
         .setLabel('Kick User')
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger) // Crimson Red
         .setEmoji('👢'),
       new ButtonBuilder()
         .setCustomId(`vc_access_${userId}`)
         .setLabel('Allow Access')
-        .setStyle(ButtonStyle.Success)
+        .setStyle(ButtonStyle.Secondary) // Black/Grey
         .setEmoji('🔓'),
       new ButtonBuilder()
         .setCustomId(`vc_block_${userId}`)
         .setLabel('Block User')
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Danger) // Crimson Red
         .setEmoji('⛔')
     );
 
