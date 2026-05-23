@@ -54,18 +54,57 @@
       pointer-events: none;
     }
 
+    /* Primary Animated Ambient Glow */
     body::after {
       content: '';
       position: absolute;
       top: 25%;
       left: 50%;
-      transform: translate(-50%, -50%);
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
-      filter: blur(50px);
+      width: 600px;
+      height: 600px;
       z-index: -1;
       pointer-events: none;
+      filter: blur(80px);
+      animation: ambient-glow-primary 22s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+    }
+
+    /* Secondary Animated Ambient Glow */
+    .bg-glow-secondary {
+      position: absolute;
+      top: 65%;
+      left: 30%;
+      width: 500px;
+      height: 500px;
+      z-index: -1;
+      pointer-events: none;
+      filter: blur(90px);
+      animation: ambient-glow-secondary 28s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+    }
+
+    @keyframes ambient-glow-primary {
+      0%, 100% {
+        transform: translate(-50%, -50%) scale(1) translate(0px, 0px);
+        background: radial-gradient(circle, rgba(255, 51, 51, 0.35) 0%, transparent 70%);
+      }
+      33% {
+        transform: translate(-50%, -50%) scale(1.25) translate(80px, -60px);
+        background: radial-gradient(circle, rgba(255, 10, 10, 0.45) 0%, transparent 65%);
+      }
+      66% {
+        transform: translate(-50%, -50%) scale(0.85) translate(-100px, 40px);
+        background: radial-gradient(circle, rgba(180, 0, 30, 0.3) 0%, transparent 75%);
+      }
+    }
+
+    @keyframes ambient-glow-secondary {
+      0%, 100% {
+        transform: translate(-50%, -50%) scale(1) translate(0px, 0px);
+        background: radial-gradient(circle, rgba(255, 20, 20, 0.25) 0%, transparent 70%);
+      }
+      50% {
+        transform: translate(-50%, -50%) scale(1.35) translate(-60px, 100px);
+        background: radial-gradient(circle, rgba(255, 51, 51, 0.35) 0%, transparent 65%);
+      }
     }
 
     /* Container */
@@ -505,6 +544,7 @@
   </style>
 </head>
 <body>
+  <div class="bg-glow-secondary"></div>
 
   <div class="container">
     
