@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Psybot | Premium Discord Assistant</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-color: #0b0c10;
+      --card-bg: #111217;
+      --primary-color: #ff3333;
+      --primary-glow: rgba(255, 51, 51, 0.4);
+      --text-color: #c5c6c7;
+      --text-bright: #ffffff;
+      --accent-color: #1f2833;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    /* Background Grid & Glow Effects */
+    body::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(255, 51, 51, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 51, 51, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      z-index: -2;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: absolute;
+      top: 25%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+      filter: blur(50px);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      width: 100%;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Status Badge */
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(17, 18, 23, 0.8);
+      border: 1px solid rgba(255, 51, 51, 0.2);
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-bright);
+      margin-bottom: 25px;
+      box-shadow: 0 0 15px rgba(255, 51, 51, 0.05);
+      animation: pulse-border 3s infinite alternate;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #00ff66;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #00ff66;
+      animation: blink 1.5s infinite;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 3.5rem;
+      font-weight: 900;
+      color: var(--text-bright);
+      letter-spacing: 4px;
+      text-shadow: 0 0 20px var(--primary-glow);
+      margin-bottom: 10px;
+    }
+
+    h1 span {
+      color: var(--primary-color);
+    }
+
+    .tagline {
+      font-size: 1.15rem;
+      font-weight: 300;
+      letter-spacing: 1px;
+      color: #8892b0;
+    }
+
+    /* Feature Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 25px;
+      width: 100%;
+      margin-bottom: 50px;
+    }
+
+    /* Card */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      border-top: 3px solid rgba(255, 51, 51, 0.3);
+      border-radius: 12px;
+      padding: 30px;
+      transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, transparent 0%, rgba(255, 51, 51, 0.02) 100%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-8px);
+      border-color: rgba(255, 51, 51, 0.3);
+      border-top-color: var(--primary-color);
+      box-shadow: 0 15px 35px rgba(255, 51, 51, 0.15);
+    }
+
+    .card:hover::before {
+      opacity: 1;
+    }
+
+    .card-icon {
+      font-size: 2.2rem;
+      margin-bottom: 20px;
+      display: inline-block;
+      text-shadow: 0 0 10px rgba(255, 51, 51, 0.3);
+    }
+
+    .card-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.25rem;
+      color: var(--text-bright);
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+    }
+
+    .card-desc {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #8892b0;
+    }
+
+    /* Actions Section */
+    .actions {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 15px 35px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-decoration: none;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+      cursor: pointer;
+      font-family: 'Orbitron', sans-serif;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: var(--text-bright);
+      border: 1px solid var(--primary-color);
+      box-shadow: 0 5px 20px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      background-color: #ff1a1a;
+      box-shadow: 0 8px 25px rgba(255, 51, 51, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background-color: transparent;
+      color: var(--text-bright);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-secondary:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+      border-color: var(--primary-color);
+      box-shadow: 0 5px 20px rgba(255, 51, 51, 0.1);
+      transform: translateY(-2px);
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 30px 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.03);
+      width: 100%;
+      font-size: 0.85rem;
+      color: #565e75;
+      letter-spacing: 1px;
+    }
+
+    footer span {
+      color: var(--primary-color);
+    }
+
+    /* Animations */
+    @keyframes blink {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    @keyframes pulse-border {
+      0% { border-color: rgba(255, 51, 51, 0.2); }
+      100% { border-color: rgba(255, 51, 51, 0.4); }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 2.5rem;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Operational Badge -->
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      Psybot Online
+    </div>
+
+    <!-- Header -->
+    <header>
+      <h1>PSY<span>BOT</span></h1>
+      <p class="tagline">The Ultimate Premium Discord Companion</p>
+    </header>
+
+    <!-- Features Section -->
+    <div class="grid">
+      
+      <!-- Card 1 -->
+      <div class="card">
+        <div class="card-icon">🧠</div>
+        <h3 class="card-title">Gemini AI Assistant</h3>
+        <p class="card-desc">Ask queries directly or create private, self-destructing AI chat channels powered by advanced LLM engines.</p>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <h3 class="card-title">Dynamic Leveling</h3>
+        <p class="card-desc">Keep your members engaged with XP tracking, leaderboards, and automated rank role rewards with profile cleanup.</p>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="card">
+        <div class="card-icon">🎫</div>
+        <h3 class="card-title">Ticket Support</h3>
+        <p class="card-desc">Highly detailed support ticket portal with claiming, transfers, and interactive dashboard buttons for your staff.</p>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="card">
+        <div class="card-icon">🎙️</div>
+        <h3 class="card-title">Voice Room Manager</h3>
+        <p class="card-desc">Empower users to edit, lock, allow, kick, and manage their temporary custom voice rooms on the fly.</p>
+      </div>
+
+    </div>
+
+    <!-- Call to Actions -->
+    <div class="actions">
+      <a href="https://discord.com" target="_blank" class="btn btn-primary">Invite Psybot</a>
+      <a href="https://github.com/nihal-forreaal/Psybot-dcbot" target="_blank" class="btn btn-secondary">View Source</a>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    &copy; 2026 Psybot. Designed with <span>&hearts;</span> for the community.
+  </footer>
+
+</body>
+</html>

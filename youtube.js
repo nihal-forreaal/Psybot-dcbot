@@ -1,6 +1,8 @@
 const express = require('express');
 const axios = require('axios');
 const { parseStringPromise } = require('xml2js');
+const fs = require('fs');
+const path = require('path');
 
 module.exports = {
   async init(client) {
@@ -16,7 +18,9 @@ module.exports = {
       console.warn('YouTube webhook not configured: set YT_CHANNEL_ID and PUBLIC_URL in .env');
       console.log('Starting minimal health check server for Koyeb/Render deployment...');
       const app = express();
-      app.get('/', (req, res) => res.send('Psybot is active and healthy! 🤖'));
+      app.get('/', (req, res) => {
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+      });
       app.listen(port, () => {
         console.log(`Health check server listening on port ${port}`);
       });
@@ -29,7 +33,9 @@ module.exports = {
     app.use(express.text({ type: '*/*' }));
 
     // Root path for Koyeb/Render health check verification
-    app.get('/', (req, res) => res.send('Psybot is active and healthy! 🤖'));
+    app.get('/', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
 
     app.get(callbackPath, (req, res) => {
       const token = req.query['hub.verify_token'];
