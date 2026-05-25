@@ -10,18 +10,30 @@ const { EmbedBuilder } = require('discord.js');
 
 const queue = new Map();
 
+// Helper to run an async operation with a timeout
+function withTimeout(promise, ms, errorMessage) {
+  let timeout = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(errorMessage)), ms);
+  });
+  return Promise.race([promise, timeout]);
+}
+
 /**
  * Play the next song in the guild queue.
  */
 async function playSong(guildId, song) {
   const serverQueue = queue.get(guildId);
-  if (!serverQueue) return;
+  if (!serverQueue) {
+    console.log(`[MUSIC] No queue found for guild: ${guildId}`);
+    return;
+  }
 
   if (!song) {
-    // Queue is empty, start a 3-minute disconnect timeout
+    console.log(`[MUSIC] Queue is empty for guild: ${guildId}. Setting disconnect timeout.`);
     serverQueue.textChannel.send('🎵 Queue is empty. Leaving voice channel soon...');
     
     serverQueue.timeoutId = setTimeout(() => {
+      console.log(`[MUSIC] Disconnect timeout triggered for guild: ${guildId}`);
       cleanupQueue(guildId);
     }, 180000); // 3 minutes
     return;
@@ -29,17 +41,27 @@ async function playSong(guildId, song) {
 
   // Clear any existing idle timeout
   if (serverQueue.timeoutId) {
+    console.log(`[MUSIC] Clearing disconnect timeout for guild: ${guildId}`);
     clearTimeout(serverQueue.timeoutId);
     serverQueue.timeoutId = null;
   }
 
   try {
-    // Fetch stream using play-dl
-    const stream = await play.stream(song.url);
+    console.log(`[MUSIC] Requesting audio stream from play-dl for song: "${song.title}" (${song.url})`);
+    
+    // Fetch stream using play-dl with a 15-second timeout
+    const stream = await withTimeout(
+      play.stream(song.url),
+      15000,
+      'Failed to establish audio stream (request timed out).'
+    );
+    
+    console.log(`[MUSIC] Stream generated. Input type: ${stream.type}`);
     const resource = createAudioResource(stream.stream, {
       inputType: stream.type
     });
 
+    console.log('[MUSIC] Playing resource on audio player...');
     serverQueue.player.play(resource);
 
     const embed = new EmbedBuilder()
@@ -55,8 +77,8 @@ async function playSong(guildId, song) {
 
     await serverQueue.textChannel.send({ embeds: [embed] });
   } catch (err) {
-    console.error(`Error playing song ${song.title}:`, err);
-    await serverQueue.textChannel.send(`⚠️ Error playing track: **${song.title}**. Skipping...`);
+    console.error(`[MUSIC] Error playing song "${song.title}":`, err);
+    await serverQueue.textChannel.send(`⚠️ Error playing track: **${song.title}** (${err.message || err}). Skipping...`);
     
     // Play next song
     serverQueue.songs.shift();
@@ -77,10 +99,11 @@ function cleanupQueue(guildId) {
 
   try {
     if (serverQueue.connection) {
+      console.log(`[MUSIC] Destroying voice connection for guild: ${guildId}`);
       serverQueue.connection.destroy();
     }
   } catch (err) {
-    console.error('Error destroying voice connection:', err);
+    console.error('[MUSIC] Error destroying voice connection:', err);
   }
 
   queue.delete(guildId);

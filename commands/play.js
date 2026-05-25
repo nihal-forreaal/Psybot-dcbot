@@ -3,6 +3,14 @@ const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
 const musicUtil = require('../musicUtil');
 
+// Helper to run an async operation with a timeout
+function withTimeout(promise, ms, errorMessage) {
+  let timeout = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(errorMessage)), ms);
+  });
+  return Promise.race([promise, timeout]);
+}
+
 module.exports = {
   name: 'play',
   description: 'Play music in your voice channel from YouTube, SoundCloud, or Spotify',
@@ -33,10 +41,14 @@ module.exports = {
     const loadingMessage = await message.reply('🔍 Searching and processing track...');
 
     try {
-      const validate = await play.validate(query);
+      console.log(`[MUSIC] Validating query: "${query}"`);
+      const validate = await withTimeout(play.validate(query), 12000, 'YouTube/SoundCloud/Spotify validation timed out.');
+      console.log(`[MUSIC] Validation result: "${validate}"`);
 
       if (validate === 'yt_video') {
-        const videoInfo = await play.video_info(query);
+        console.log(`[MUSIC] Fetching video info for: "${query}"`);
+        const videoInfo = await withTimeout(play.video_info(query), 12000, 'YouTube video info request timed out.');
+        console.log(`[MUSIC] Video info fetched: "${videoInfo.video_details.title}"`);
         songs.push({
           title: videoInfo.video_details.title,
           url: videoInfo.video_details.url,
@@ -45,8 +57,10 @@ module.exports = {
           requester: message.author
         });
       } else if (validate === 'yt_playlist') {
-        const playlist = await play.playlist_info(query, { incomplete: true });
+        console.log(`[MUSIC] Fetching playlist info for: "${query}"`);
+        const playlist = await withTimeout(play.playlist_info(query, { incomplete: true }), 15000, 'YouTube playlist request timed out.');
         const videos = await playlist.all_videos();
+        console.log(`[MUSIC] Playlist info fetched: "${playlist.title}" with ${videos.length} videos`);
         for (const video of videos) {
           songs.push({
             title: video.title,
@@ -59,9 +73,12 @@ module.exports = {
         await message.channel.send(`✅ Added **${videos.length}** songs from playlist **${playlist.title}** to the queue.`);
       } else if (validate && validate.startsWith('sp_')) {
         // Spotify Link
-        const spotifyData = await play.spotify(query);
+        console.log(`[MUSIC] Fetching Spotify data for: "${query}"`);
+        const spotifyData = await withTimeout(play.spotify(query), 15000, 'Spotify metadata request timed out.');
+        console.log(`[MUSIC] Spotify type: "${spotifyData.type}"`);
         if (spotifyData.type === 'track') {
-          const searchResult = await play.search(`${spotifyData.name} ${spotifyData.artists[0]?.name}`, { limit: 1 });
+          console.log(`[MUSIC] Searching YouTube for Spotify track: "${spotifyData.name}"`);
+          const searchResult = await withTimeout(play.search(`${spotifyData.name} ${spotifyData.artists[0]?.name}`, { limit: 1 }), 12000, 'Spotify track search on YouTube timed out.');
           if (searchResult.length > 0) {
             songs.push({
               title: spotifyData.name,
@@ -74,10 +91,11 @@ module.exports = {
         } else {
           // Playlist or Album
           const tracks = await spotifyData.all_tracks();
+          console.log(`[MUSIC] Spotify playlist/album contains ${tracks.length} tracks. Resolving first 25...`);
           await message.channel.send(`🔄 Loading Spotify ${spotifyData.type}... (processing first 25 tracks)`);
           for (const track of tracks) {
             if (songs.length >= 25) break;
-            const searchResult = await play.search(`${track.name} ${track.artists[0]?.name}`, { limit: 1 });
+            const searchResult = await play.search(`${track.name} ${track.artists[0]?.name}`, { limit: 1 }).catch(() => []);
             if (searchResult.length > 0) {
               songs.push({
                 title: track.name,
@@ -91,7 +109,8 @@ module.exports = {
           await message.channel.send(`✅ Added **${songs.length}** songs from Spotify **${spotifyData.name}**.`);
         }
       } else if (validate === 'so_track') {
-        const soundcloudInfo = await play.soundcloud(query);
+        console.log(`[MUSIC] Fetching SoundCloud info for: "${query}"`);
+        const soundcloudInfo = await withTimeout(play.soundcloud(query), 12000, 'SoundCloud request timed out.');
         songs.push({
           title: soundcloudInfo.name,
           url: soundcloudInfo.permalink,
@@ -101,7 +120,9 @@ module.exports = {
         });
       } else {
         // Search term
-        const searchResults = await play.search(query, { limit: 1 });
+        console.log(`[MUSIC] Searching YouTube for query: "${query}"`);
+        const searchResults = await withTimeout(play.search(query, { limit: 1 }), 12000, 'YouTube search request timed out.');
+        console.log(`[MUSIC] Search complete. Found: ${searchResults.length} results`);
         if (searchResults.length === 0) {
           await loadingMessage.delete().catch(() => {});
           return message.reply('❌ No results found on YouTube.');
@@ -116,11 +137,12 @@ module.exports = {
         });
       }
     } catch (err) {
-      console.error(err);
+      console.error('[MUSIC] Error during search/resolve:', err);
       await loadingMessage.delete().catch(() => {});
-      return message.reply('❌ An error occurred while searching for the track. Please try again.');
+      return message.reply(`❌ Connection error: **${err.message || err}**. Please try again.`);
     }
 
+    console.log(`[MUSIC] Search phase completed. Deleting loading message.`);
     await loadingMessage.delete().catch(() => {});
 
     if (songs.length === 0) {
@@ -142,12 +164,14 @@ module.exports = {
       queueConstruct.songs.push(...songs);
 
       try {
+        console.log(`[MUSIC] Joining voice channel: "${voiceChannel.name}" (${voiceChannel.id})`);
         const connection = joinVoiceChannel({
           channelId: voiceChannel.id,
           guildId: message.guild.id,
           adapterCreator: message.guild.voiceAdapterCreator,
         });
 
+        console.log('[MUSIC] Creating audio player...');
         const player = createAudioPlayer();
         connection.subscribe(player);
 
@@ -156,13 +180,13 @@ module.exports = {
 
         // Player transitions
         player.on(AudioPlayerStatus.Idle, () => {
-          // Play next song
+          console.log('[MUSIC] Audio player is Idle. Playing next song in queue...');
           queueConstruct.songs.shift();
           musicUtil.playSong(message.guild.id, queueConstruct.songs[0]);
         });
 
         player.on('error', error => {
-          console.error('Audio Player Error:', error);
+          console.error('[MUSIC] Audio Player Error:', error);
           queueConstruct.textChannel.send(`⚠️ Audio player error: ${error.message}. Skipping...`);
           queueConstruct.songs.shift();
           musicUtil.playSong(message.guild.id, queueConstruct.songs[0]);
@@ -170,17 +194,20 @@ module.exports = {
 
         // Connection transitions (cleanup on manual disconnect)
         connection.on(VoiceConnectionStatus.Destroyed, () => {
+          console.log('[MUSIC] Voice connection was destroyed. Cleaning up queue...');
           musicUtil.queue.delete(message.guild.id);
         });
 
         // Start playback
+        console.log(`[MUSIC] Starting playback of: "${queueConstruct.songs[0].title}"`);
         await musicUtil.playSong(message.guild.id, queueConstruct.songs[0]);
       } catch (err) {
-        console.error('Voice Join Error:', err);
+        console.error('[MUSIC] Voice Join Error:', err);
         musicUtil.queue.delete(message.guild.id);
         return message.reply(`❌ Could not join the voice channel: ${err.message}`);
       }
     } else {
+      console.log(`[MUSIC] Queue exists. Adding ${songs.length} song(s) to queue.`);
       serverQueue.songs.push(...songs);
       if (songs.length === 1) {
         const embed = new EmbedBuilder()
