@@ -8,6 +8,14 @@ const {
 const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
 
+// Bypass play-dl trying to dynamically scrape a SoundCloud client_id from SoundCloud's website,
+// which gets blocked by SoundCloud on cloud hosting IPs (e.g. Render.com) and throws a fatal error.
+play.setToken({
+  soundcloud: {
+    client_id: '00000000000000000000000000000000'
+  }
+}).catch(err => console.error('[MUSIC] Failed to set dummy SoundCloud token:', err));
+
 const queue = new Map();
 
 // Helper to run an async operation with a timeout
