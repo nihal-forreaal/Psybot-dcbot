@@ -201,7 +201,7 @@ const onReady = async () => {
   }, 24 * 60 * 60 * 1000); // Every 24 hours
 };
 
-client.once('clientReady', onReady);
+client.once('ready', onReady);
 
 client.on('guildMemberAdd', async member => {
   try {
