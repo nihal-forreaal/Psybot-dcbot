@@ -1,5 +1,6 @@
 const { joinVoiceChannel, createAudioPlayer, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
 const play = require('play-dl');
+const ytdl = require('@distube/ytdl-core');
 const { EmbedBuilder } = require('discord.js');
 const musicUtil = require('../musicUtil');
 
@@ -11,18 +12,8 @@ play.setToken({
   }
 }).catch(err => console.error('[MUSIC] Failed to set dummy SoundCloud token:', err));
 
-const YOUTUBE_COOKIE = 'HSID=AlpJMnadEGHeUs0YY; SSID=A-ajQbUsssbA_JxSm; APISID=s-FkaJKUC9VbQVdP/A5lnJkSeznPf0oAUl; SAPISID=dwr6WDmm3CtYp2AC/Aveg_mMLDSmASrT-o; __Secure-1PAPISID=dwr6WDmm3CtYp2AC/Aveg_mMLDSmASrT-o; __Secure-3PAPISID=dwr6WDmm3CtYp2AC/Aveg_mMLDSmASrT-o; SID=g.a000-QjM3B1W8XSeVbNLwZ1dJKTGHRZc72bMzeReP8Q8LMVDPkw2GpfiVwmaJdzQ3_k270W_JQACgYKAcgSARUSFQHGX2MidWSPsM7YOcAqFHuYDwQDKxoVAUF8yKryZtbEJBxMGUdoeR7DngDn0076; __Secure-1PSID=g.a000-QjM3B1W8XSeVbNLwZ1dJKTGHRZc72bMzeReP8Q8LMVDPkw2heuMMbfqYiHxrbdWwUzPNwACgYKAQwSARUSFQHGX2Mi3rWyffcvls5hGcFmGQXdSRoVAUF8yKrLNxi-n_1MIQ8SGH5CLqfl0076; __Secure-3PSID=g.a000-QjM3B1W8XSeVbNLwZ1dJKTGHRZc72bMzeReP8Q8LMVDPkw2lsdViIRDEDVaA4VG5RN36gACgYKAaESARUSFQHGX2MiNSD67o9MR10fnPYvj3QgfxoVAUF8yKrO4SwKZHUZ-WYxyeoSm2UC0076; VISITOR_INFO1_LIVE=1g5bua1i5mI; VISITOR_PRIVACY_METADATA=CgJJThIEGgAgFg%3D%3D; __Secure-YNID=18.YT=W_9QI263tg8iEjJyLSNV7L7W-gG_OVK3pjxbIQ8moJRSvZ4cPXZTnzi8nW4WBHZfWQrjLMVOoimYwL4PXzrZ9Nm0Ea9Fc6vxWMoEv8bdSfqtn4pBn5Q0dUs12OD-RgaNuj_0igSJ60swuXiLsUQFRqFqeKgvzGIpc8wO4j1jNDOIUjNPq-m-mjrTAgNJe6laVyhSXb--XMXrktPAJwIlRJADHeFHS47lkMxPWiJviCLAN1a105-xaRzI86-q9AImOcEIwRSKCqOQlTrHuTwun2iKfeRmIAbvlGL0QimJS61Oxf4-hoUBGqdB7pp71vFfrsKGpqWuLGcb0D_sviqgwQ; YSC=reVW9tXxIIw; __Secure-ROLLOUT_TOKEN=CPit-PaExPDcMxCY4I--iNCUAxj3ja7gltOUAw%3D%3D; PREF=f6=40000080&f4=4000000&tz=Asia.Calcutta&f7=140; LOGIN_INFO=AFmmF2swRgIhALwSOO93cwnPoMf_oSDm4INXQ3Az4TXIpspFXwQ0rEiPAiEAy8eZKGzJ5yQjkRBpQPhdCTIfOKBI6i3vedMItXQ6PkA:QUQ3MjNmeGcyTGZsNVhfbGRVN3RCcERrT21ZYkxKWDVrYXg1QVY0ZjZ2X292Qzl5d2owQjlSdzI5bURaZVpYcUx4MXdnT1JBeXJPa1RzN0ZVSVJlQW9GbXJJX19NTkVSZ3hwZVFGdXU3MzdjT2h3RXk2NjFQcUdGUDVLWHBSM0lGazBCeUVsS0Z2cmtSalFkZ0lFN0FsWjVfdWFibTZfOGtUZDdvb292RnpWaEI4X3hUbndRc1lvS2dsM1FPcUxMeHBtN2NwNWxuUk10VFFSZG9XVnd5anVWckVEWkcteXdTdw==; __Secure-1PSIDTS=sidts-CjUBhkeRd2Wc8X-MEQM-Ll-wtLDL2F-q48NnemxtnS4cMZrOA8KA7aY-tIg08ZmoGf3Uz6L5LRAA; __Secure-3PSIDTS=sidts-CjUBhkeRd2Wc8X-MEQM-Ll-wtLDL2F-q48NnemxtnS4cMZrOA8KA7aY-tIg08ZmoGf3Uz6L5LRAA; ST-l3hjtt=session_logininfo=AFmmF2swRgIhALwSOO93cwnPoMf_oSDm4INXQ3Az4TXIpspFXwQ0rEiPAiEAy8eZKGzJ5yQjkRBpQPhdCTIfOKBI6i3vedMItXQ6PkA%3AQUQ3MjNmeGcyTGZsNVhfbGRVN3RCcERrT21ZYkxKWDVrYXg1QVY0ZjZ2X292Qzl5d2owQjlSdzI5bURaZVpYcUx4MXdnT1JBeXJPa1RzN0ZVSVJlQW9GbXJJX19NTkVSZ3hwZVFGdXU3MzdjT2h3RXk2NjFQcUdGUDVLWHBSM0lGazBCeUVsS0Z2cmtSalFkZ0lFN0FsWjVfdWFibTZfOGtUZDdvb292RnpWaEI4X3hUbndRc1lvS2dsM1FPcUxMeHBtN2NwNWxuUk10VFFSZG9XVnd5anVWckVEWkcteXdTdw%3D%3D; ST-tladcw=session_logininfo=AFmmF2swRgIhALwSOO93cwnPoMf_oSDm4INXQ3Az4TXIpspFXwQ0rEiPAiEAy8eZKGzJ5yQjkRBpQPhdCTIfOKBI6i3vedMItXQ6PkA%3AQUQ3MjNmeGcyTGZsNVhfbGRVN3RCcERrT21ZYkxKWDVrYXg1QVY0ZjZ2X292Qzl5d2owQjlSdzI5bURaZVpYcUx4MXdnT1JBeXJPa1RzN0ZVSVJlQW9GbXJJX19NTkVSZ3hwZVFGdXU3MzdjT2h3RXk2NjFQcUdGUDVLWHBSM0lGazBCeUVsS0Z2cmtSalFkZ0lFN0FsWjVfdWFibTZfOGtUZDdvb292RnpWaEI4X3hUbndRc1lvS2dsM1FPcUxMeHBtN2NwNWxuUk10VFFSZG9XVnd5anVWckVEWkcteXdTdw%3D%3D; SIDCC=AKEyXzVWa3jbsRGrw_8Bisd7qm2hgweADwr0U0bZwppcVeTrpYIBgeQsva4j0_Gzoilev3Y7rGs; __Secure-1PSIDCC=AKEyXzUKxWXyhN74kt-7CByrgs-72GA1GQxO_H4owgICoh_06lGwO_VAhmc6muVxuAOk3FkEXQ; __Secure-3PSIDCC=AKEyXzUa0WBvKB9Q-4FycZQOtatYxHNkVCjTeofIXChI5UpNEKwdv_jZ6oc8vD1gJBloIds8lz8';
-
-// Authenticate YouTube requests using cookies from environment variables (or local fallback) to bypass 429 Rate Limits / Blocks on Render.com.
+const YOUTUBE_COOKIE = 'HSID=AlpJMnadEGHeUs0YY; SSID=A-ajQbUsssbA_JxSm; APISID=s-FkaJKUC9VbQVdP/A5lnJkSeznPf0oAUl; SAPISID=dwr6WDmm3CtYp2AC/Aveg_mMLDSmASrT-o; __Secure-1PAPISID=dwr6WDmm3CtYp2AC/Aveg_mMLDSmASrT-o; __Secure-3PAPISID=dwr6WDmm3CtYp2AC/Aveg_mMLDSmASrT-o; SID=g.a000-QjM3B1W8XSeVbNLwZ1dJKTGHRZc72bMzeReP8Q8LMVDPkw2GpfiVwmaJdzQ3_k270W_JQACgYKAcgSARUSFQHGX2MidWSPsM7YOcAqFHuYDwQDKxoVAUF8yKryZtbEJBxMGUdoeR7DngDn0076; __Secure-1PSID=g.a000-QjM3B1W8XSeVbNLwZ1dJKTGHRZc72bMzeReP8Q8LMVDPkw2heuMMbfqYiHxrbdWwUzPNwACgYKAQwSARUSFQHGX2Mi3rWyffcvls5hGcFmGQXdSRoVAUF8yKrLNxi-n_1MIQ8SGH5CLqfl0076; __Secure-3PSID=g.a000-QjM3B1W8XSeVbNLwZ1dJKTGHRZc72bMzeReP8Q8LMVDPkw2lsdViIRDEDVaA4VG5RN36gACgYKAaESARUSFQHGX2MiNSD67o9MR10fnPYvj3QgfxoVAUF8yKrO4SwKZHUZ-WYxyeoSm2UC0076; VISITOR_INFO1_LIVE=1g5bua1i5mI; VISITOR_PRIVACY_METADATA=CgJJThIEGgAgFg%3D%3D; __Secure-YNID=18.YT=W_9QI263tg8iEjJyLSNV7L7W-gG_OVK3pjxbIQ8moJRSvZ4cPXZTnzi8nW4WBHZfWQrjLMVOoimYwL4PXzrZ9Nm0Ea9Fc6vxWMoEv8bdSfqtn4pBn5Q0dUs12OD-RgaNuj_0igSJ60swuXiLsUQFRqFqeKgvzGIpc8wO4j1jNDOIUjNPq-m-mjrTAgNJe6laVyhSXb--XMXrktPAJwIlRJADHeFHS47lkMxPWiJviCLAN1a105-xaRzI86-q9AImOcEIwRSKCqOQlTrHuTwun2iKfeRmIAbvlGL0QimJS61Oxf4-hoUBGqdB7pp71vFfrsKGpqWuLGcb0D_sviqgwQ; YSC=reVW9tXxIIw; __Secure-ROLLOUT_TOKEN=CPit-PaExPDcMxCY4I--iNCUAxj3ja7gltOUAw%3D%3D; PREF=f6=40000080&f4=4000000&tz=Asia.Calcutta&f7=140; LOGIN_INFO=AFmmF2swRgIhALwSOO93cwnPoMf_oSDm4INXQ3Az4TXIpspFXwQ0rEiPAiEAy8eZKGzJ5yQjkRBpQPhdCTIfOKBI6i3vedMItXQ6PkA:QUQ3MjNmeGcyTGZsNVhfbGRVN3RCcERrT21ZYkxKWDVrYXg1QVY0ZjZ2X292Qzl5d2owQjlSdzI5bURaZVpYcUx4MXdnT1JBeXJPa1RzN0ZVSVJlQW9GbXJJX19NTkVSZ3hwZVFGdXU3MzdjT2h3RXk2NjFQcUdGUDVLWHBSM0lGazBCeUVsS0Z2cmtSalFkZ0lFN0FsWjVfdWFibTZfOGtUZDdvb292RnpWaEI4X3hUbndRc1lvS2ds3QPcUxMeHBtN2NwNWxuUk10VFFSZG9XVnd5anVWckVEWkcteXdTdw==; __Secure-1PSIDTS=sidts-CjUBhkeRd2Wc8X-MEQM-Ll-wtLDL2F-q48NnemxtnS4cMZrOA8KA7aY-tIg08ZmoGf3Uz6L5LRAA; __Secure-3PSIDTS=sidts-CjUBhkeRd2Wc8X-MEQM-Ll-wtLDL2F-q48NnemxtnS4cMZrOA8KA7aY-tIg08ZmoGf3Uz6L5LRAA; ST-l3hjtt=session_logininfo=AFmmF2swRgIhALwSOO93cwnPoMf_oSDm4INXQ3Az4TXIpspFXwQ0rEiPAiEAy8eZKGzJ5yQjkRBpQPhdCTIfOKBI6i3vedMItXQ6PkA%3AQUQ3MjNmeGcyTGZsNVhfbGRVN3RCcERrT21ZYkxKWDVrYXg1QVY0ZjZ2X292Qzl5d2owQjlSdzI5bURaZVpYcUx4MXdnT1JBeXJPa1RzN0ZVSVJlQW9GbXJJX19NTkVSZ3hwZVFGdXU3MzdjT2h3RXk2NjFQcUdGUDVLWHBSM0lGazBCeUVsS0Z2cmtSalFkZ0lFN0FsWjVfdWFibTZfOGtUZDdvb292RnpWaEI4X3hUbndRc1lvS2dsM1FPcUxMeHBtN2NwNWxuUk10VFFSZG9XVnd5anVWckVEWkcteXdTdw%3D%3D; ST-tladcw=session_logininfo=AFmmF2swRgIhALwSOO93cwnPoMf_oSDm4INXQ3Az4TXIpspFXwQ0rEiPAiEAy8eZKGzJ5yQjkRBpQPhdCTIfOKBI6i3vedMItXQ6PkA%3AQUQ3MjNmeGcyTGZsNVhfbGRVN3RCcERrT21ZYkxKWDVrYXg1QVY0ZjZ2X292Qzl5d2owQjlSdzI5bURaZVpYcUx4MXdnT1JBeXJPa1RzN0ZVSVJlQW9GbXJJX19NTkVSZ3hwZVFGdXU3MzdjT2h3RXk2NjFQcUdGUDVLWHBSM0lGazBCeUVsS0Z2cmtSalFkZ0lFN0FsWjVfdWFibTZfOGtUZDdvb292RnpWaEI4X3hUbndRc1lvS2dsM1FPcUxMeHBtN2NwNWxuUk10VFFSZG9XVnd5anVWckVEWkcteXdTdw%3D%3D; SIDCC=AKEyXzVWa3jbsRGrw_8Bisd7qm2hgweADwr0U0bZwppcVeTrpYIBgeQsva4j0_Gzoilev3Y7rGs; __Secure-1PSIDCC=AKEyXzUKxWXyhN74kt-7CByrgs-72GA1GQxO_H4owgICoh_06lGwO_VAhmc6muVxuAOk3FkEXQ; __Secure-3PSIDCC=AKEyXzUa0WBvKB9Q-4FycZQOtatYxHNkVCjTeofIXChI5UpNEKwdv_jZ6oc8vD1gJBloIds8lz8';
 const targetCookie = process.env.YOUTUBE_COOKIE || YOUTUBE_COOKIE;
-if (targetCookie) {
-  play.setToken({
-    youtube: {
-      cookie: targetCookie
-    }
-  }).then(() => console.log('[MUSIC] YouTube cookies loaded successfully.'))
-    .catch(err => console.error('[MUSIC] Failed to set YouTube cookie:', err));
-}
 
 // Helper to run an async operation with a timeout
 function withTimeout(promise, ms, errorMessage) {
@@ -67,14 +58,30 @@ module.exports = {
       console.log(`[MUSIC] Validation result: "${validate}"`);
 
       if (validate === 'yt_video') {
-        console.log(`[MUSIC] Fetching video info for: "${query}"`);
-        const videoInfo = await withTimeout(play.video_info(query), 12000, 'YouTube video info request timed out.');
-        console.log(`[MUSIC] Video info fetched: "${videoInfo.video_details.title}"`);
+        console.log(`[MUSIC] Fetching YouTube video info using @distube/ytdl-core for: "${query}"`);
+        
+        // Use @distube/ytdl-core to fetch basic info passing the cookies & custom UA to bypass the bot detection
+        const videoInfo = await withTimeout(
+          ytdl.getBasicInfo(query, {
+            requestOptions: {
+              headers: {
+                cookie: targetCookie,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+              }
+            }
+          }),
+          12000,
+          'YouTube video info request timed out.'
+        );
+        
+        const details = videoInfo.videoDetails;
+        console.log(`[MUSIC] Video info fetched: "${details.title}"`);
+        
         songs.push({
-          title: videoInfo.video_details.title,
-          url: videoInfo.video_details.url,
-          duration: videoInfo.video_details.durationRaw,
-          thumbnail: videoInfo.video_details.thumbnails[0]?.url || '',
+          title: details.title,
+          url: details.video_url,
+          duration: new Date(details.lengthSeconds * 1000).toISOString().slice(11, 19).replace(/^00:/, ''),
+          thumbnail: details.thumbnails[0]?.url || '',
           requester: message.author
         });
       } else if (validate === 'yt_playlist') {
@@ -91,7 +98,7 @@ module.exports = {
             requester: message.author
           });
         }
-        await message.channel.send(`✅ Added **${videos.length}** songs from playlist **${playlist.title}** to the queue.`);
+        await message.channel.send(`` + `✅ Added **${videos.length}** songs from playlist **${playlist.title}** to the queue.`);
       } else if (validate && validate.startsWith('sp_')) {
         // Spotify Link
         console.log(`[MUSIC] Fetching Spotify data for: "${query}"`);
@@ -113,7 +120,7 @@ module.exports = {
           // Playlist or Album
           const tracks = await spotifyData.all_tracks();
           console.log(`[MUSIC] Spotify playlist/album contains ${tracks.length} tracks. Resolving first 25...`);
-          await message.channel.send(`🔄 Loading Spotify ${spotifyData.type}... (processing first 25 tracks)`);
+          await message.channel.send(`` + `🔄 Loading Spotify ${spotifyData.type}... (processing first 25 tracks)`);
           for (const track of tracks) {
             if (songs.length >= 25) break;
             const searchResult = await play.search(`${track.name} ${track.artists[0]?.name}`, { limit: 1 }).catch(() => []);
@@ -127,7 +134,7 @@ module.exports = {
               });
             }
           }
-          await message.channel.send(`✅ Added **${songs.length}** songs from Spotify **${spotifyData.name}**.`);
+          await message.channel.send(`` + `✅ Added **${songs.length}** songs from Spotify **${spotifyData.name}**.`);
         }
       } else if (validate === 'so_track') {
         console.log(`[MUSIC] Fetching SoundCloud info for: "${query}"`);
