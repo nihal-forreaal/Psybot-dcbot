@@ -11,6 +11,16 @@ play.setToken({
   }
 }).catch(err => console.error('[MUSIC] Failed to set dummy SoundCloud token:', err));
 
+// Authenticate YouTube requests using cookies from environment variables to bypass 429 Rate Limits / Blocks on Render.com.
+if (process.env.YOUTUBE_COOKIE) {
+  play.setToken({
+    youtube: {
+      cookie: process.env.YOUTUBE_COOKIE
+    }
+  }).then(() => console.log('[MUSIC] YouTube cookies loaded successfully.'))
+    .catch(err => console.error('[MUSIC] Failed to set YouTube cookie:', err));
+}
+
 // Helper to run an async operation with a timeout
 function withTimeout(promise, ms, errorMessage) {
   let timeout = new Promise((_, reject) => {
