@@ -31,9 +31,14 @@ module.exports = {
         return message.reply('⚠️ No roles configured in `reactionRolesConfig.json`.');
       }
 
+      let descriptionText = '';
+      for (const role of rolesConfig) {
+        descriptionText += `**${role.label}** = ${role.emoji}\n`;
+      }
+
       const embed = new EmbedBuilder()
-        .setTitle('🎭 Self-Assign Roles')
-        .setDescription('Click the buttons below to gain or remove access to specific roles!')
+        .setTitle('Auto Role')
+        .setDescription(descriptionText)
         .setColor('#5865F2')
         .setFooter({ text: 'Psybot Role Manager' });
 
