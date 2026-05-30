@@ -135,14 +135,14 @@ const onReady = async () => {
   ];
 
   try {
-    // Register commands globally so the bot gets the green 'Supports Commands' badge on its profile!
+    // Register commands globally for the profile badge
     await client.application.commands.set(slashCommands);
-    console.log(`Successfully registered global slash commands for the bot!`);
+    console.log(`Successfully registered global slash commands!`);
 
-    // Clear guild-level commands to ensure no duplicates exist (only global ones will remain)
+    // ALSO register commands per-guild so they appear instantly without waiting an hour
     for (const guild of client.guilds.cache.values()) {
-      await guild.commands.set([]);
-      console.log(`Cleared guild-specific commands for: ${guild.name}`);
+      await guild.commands.set(slashCommands);
+      console.log(`Registered guild-specific commands for: ${guild.name}`);
     }
   } catch (err) {
     console.error('Error deploying slash commands:', err);
