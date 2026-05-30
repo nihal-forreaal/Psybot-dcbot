@@ -122,6 +122,11 @@ const onReady = async () => {
           required: false,
         }
       ]
+    },
+    {
+      name: 'setup-logs',
+      description: 'Creates all log channels inside the existing log category. Admin only.',
+      defaultMemberPermissions: '8'
     }
   ];
 
@@ -402,6 +407,12 @@ client.on('messageCreate', async message => {
 });
 
 // Ticket System Button Handler
+// ---- Log Config Helper ----
+const logConfigPath = path.join(__dirname, 'logConfig.json');
+function getLogConfig() {
+  try { return JSON.parse(fs.readFileSync(logConfigPath, 'utf8')); } catch { return {}; }
+}
+
 client.on('interactionCreate', async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options, guild, member } = interaction;
@@ -423,6 +434,42 @@ client.on('interactionCreate', async interaction => {
 
     if (!targetMember) {
       return interaction.reply({ content: '❌ Member not found in this server.', ephemeral: true });
+    }
+
+    if (commandName === 'setup-logs') {
+      if (!member.permissions.has('Administrator')) {
+        return interaction.reply({ content: '❌ Only administrators can run this command.', ephemeral: true });
+      }
+      await interaction.deferReply({ ephemeral: true });
+      const { ChannelType } = require('discord.js');
+      const LOG_CATEGORY_ID = '1505885380023418890';
+      const category = guild.channels.cache.get(LOG_CATEGORY_ID);
+      if (!category) {
+        return interaction.editReply({ content: '❌ Could not find the log category. Check the category ID.' });
+      }
+
+      // Delete all existing channels in that category
+      const existing = guild.channels.cache.filter(c => c.parentId === LOG_CATEGORY_ID);
+      for (const [, ch] of existing) {
+        await ch.delete('setup-logs: rebuilding log channels').catch(() => {});
+      }
+
+      // Create the 4 log channels
+      const everyoneId = guild.roles.everyone.id;
+      const adminPerms = [
+        { id: everyoneId, deny: ['ViewChannel'] },
+        { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'] }
+      ];
+      const msgLog   = await guild.channels.create({ name: 'message-log',  type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+      const voiceLog = await guild.channels.create({ name: 'voice-log',    type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+      const muteLog  = await guild.channels.create({ name: 'mute-log',     type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+      const roleLog  = await guild.channels.create({ name: 'role-log',     type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+
+      // Save channel IDs to logConfig.json
+      const cfg = { messageLog: msgLog.id, voiceLog: voiceLog.id, muteLog: muteLog.id, roleLog: roleLog.id };
+      fs.writeFileSync(logConfigPath, JSON.stringify(cfg, null, 2));
+
+      return interaction.editReply({ content: `<:tick:1510274177486028860> Log channels created!\n📝 <#${msgLog.id}> | 🎙️ <#${voiceLog.id}> | 🔇 <#${muteLog.id}> | 🎭 <#${roleLog.id}>` });
     }
 
     if (commandName === 'kick') {
@@ -1159,7 +1206,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
   // Voice State Logger (Mute, Deafen, Server Mute/Deafen)
   try {
-    const modLogChannelId = '1505909671918043258';
+    const cfg = getLogConfig();
+    const modLogChannelId = cfg.muteLog || '1505909671918043258';
     const modLogChannel = newState.guild.channels.cache.get(modLogChannelId);
     if (modLogChannel) {
       const { EmbedBuilder } = require('discord.js');
@@ -1229,7 +1277,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
     // Voice Join Logger
     try {
-      const voiceLogChannelId = '1505907978992353280';
+      const cfgV = getLogConfig();
+      const voiceLogChannelId = cfgV.voiceLog || '1505907978992353280';
       const voiceLogChannel = newState.guild.channels.cache.get(voiceLogChannelId);
       if (voiceLogChannel) {
         const { EmbedBuilder } = require('discord.js');
@@ -1613,11 +1662,11 @@ setInterval(async () => {
 // ==========================================
 // ADVANCED AUDIT LOGGER SYSTEM
 // ==========================================
-const LOG_CHANNEL_ID = '1505885380023418890';
-
 client.on('messageDelete', async message => {
   if (message.author?.bot) return;
-  const channel = message.guild?.channels.cache.get(LOG_CHANNEL_ID);
+  const cfg = getLogConfig();
+  if (!cfg.messageLog) return;
+  const channel = message.guild?.channels.cache.get(cfg.messageLog);
   if (!channel) return;
   const { EmbedBuilder } = require('discord.js');
   const embed = new EmbedBuilder()
@@ -1630,52 +1679,45 @@ client.on('messageDelete', async message => {
 
 client.on('messageUpdate', async (oldMessage, newMessage) => {
   if (newMessage.author?.bot) return;
-  if (oldMessage.content === newMessage.content) return; // Only log actual text changes
-  const channel = newMessage.guild?.channels.cache.get(LOG_CHANNEL_ID);
+  if (oldMessage.content === newMessage.content) return;
+  const cfg = getLogConfig();
+  if (!cfg.messageLog) return;
+  const channel = newMessage.guild?.channels.cache.get(cfg.messageLog);
   if (!channel) return;
   const { EmbedBuilder } = require('discord.js');
-  
   const oldContent = oldMessage.content ? oldMessage.content.substring(0, 1024) : '*None*';
   const newContent = newMessage.content ? newMessage.content.substring(0, 1024) : '*None*';
-
   const embed = new EmbedBuilder()
     .setTitle('✏️ Message Edited')
     .setColor('#f1c40f')
     .setDescription(`**Author:** ${newMessage.author}\n**Channel:** <#${newMessage.channel.id}>\n[Jump to message](${newMessage.url})`)
     .addFields(
-      { name: 'Original', value: oldContent },
-      { name: 'Edited', value: newContent }
+      { name: 'Before', value: oldContent },
+      { name: 'After', value: newContent }
     )
     .setTimestamp();
   channel.send({ embeds: [embed] }).catch(() => {});
 });
 
 client.on('guildMemberUpdate', async (oldMember, newMember) => {
-  const channel = newMember.guild.channels.cache.get(LOG_CHANNEL_ID);
+  const cfg = getLogConfig();
+  if (!cfg.roleLog) return;
+  const channel = newMember.guild.channels.cache.get(cfg.roleLog);
   if (!channel) return;
   const { EmbedBuilder } = require('discord.js');
-  
   if (oldMember.roles.cache.size !== newMember.roles.cache.size) {
     const oldRoles = oldMember.roles.cache.map(r => r.id);
     const newRoles = newMember.roles.cache.map(r => r.id);
-    
     const addedRoles = newRoles.filter(r => !oldRoles.includes(r));
     const removedRoles = oldRoles.filter(r => !newRoles.includes(r));
-    
     if (addedRoles.length > 0) {
-      const embed = new EmbedBuilder()
-        .setTitle('➕ Role Added')
-        .setColor('#2ecc71')
-        .setDescription(`**User:** ${newMember.user}\n**Role:** <@&${addedRoles[0]}>`)
-        .setTimestamp();
+      const embed = new EmbedBuilder().setTitle('➕ Role Added').setColor('#2ecc71')
+        .setDescription(`**User:** ${newMember.user}\n**Role:** <@&${addedRoles[0]}>`).setTimestamp();
       channel.send({ embeds: [embed] }).catch(() => {});
     }
     if (removedRoles.length > 0) {
-      const embed = new EmbedBuilder()
-        .setTitle('➖ Role Removed')
-        .setColor('#e74c3c')
-        .setDescription(`**User:** ${newMember.user}\n**Role:** <@&${removedRoles[0]}>`)
-        .setTimestamp();
+      const embed = new EmbedBuilder().setTitle('➖ Role Removed').setColor('#e74c3c')
+        .setDescription(`**User:** ${newMember.user}\n**Role:** <@&${removedRoles[0]}>`).setTimestamp();
       channel.send({ embeds: [embed] }).catch(() => {});
     }
   }
