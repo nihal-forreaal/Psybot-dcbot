@@ -22,7 +22,8 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.DirectMessages
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildPresences
   ],
   partials: [
     Partials.Channel,
@@ -125,6 +126,11 @@ const onReady = async () => {
           required: false,
         }
       ]
+    },
+    {
+      name: 'setup-stats',
+      description: 'Creates live server stats dashboard (Admins only).',
+      defaultMemberPermissions: '8'
     }
   ];
 
@@ -184,6 +190,64 @@ const onReady = async () => {
   } else {
     console.log('[✅ Log Setup] Log channels already configured, skipping auto-setup.');
   }
+
+  // ---- Server Stats Dashboard Auto-Updater ----
+  const statsConfigPath = path.join(__dirname, 'statsConfig.json');
+  const updateServerStats = async () => {
+    try {
+      if (!fs.existsSync(statsConfigPath)) return;
+      const cfg = JSON.parse(fs.readFileSync(statsConfigPath, 'utf8'));
+      if (!cfg.categoryId || !cfg.serverStatsId || !cfg.ytStatsId) return;
+
+      const guild = client.guilds.cache.first();
+      if (!guild) return;
+      await guild.members.fetch(); // Ensure all members are cached
+
+      const serverStatsChannel = guild.channels.cache.get(cfg.serverStatsId);
+      const ytStatsChannel = guild.channels.cache.get(cfg.ytStatsId);
+
+      // Update Server Stats: 🦋 [online] Online 🦋 [members] Members
+      if (serverStatsChannel) {
+        const totalMembers = guild.memberCount;
+        const onlineMembers = guild.members.cache.filter(m => m.presence && m.presence.status !== 'offline').size;
+        const newStatus = `🦋 ${onlineMembers} Online 🦋 ${totalMembers} Members`;
+        await client.rest.put(`/channels/${cfg.serverStatsId}/voice-status`, {
+          body: { status: newStatus }
+        }).catch(err => console.error('Failed to set server stats voice status:', err.message));
+      }
+
+      // Update YouTube Stats: 🎥 [subs] Subscribers
+      if (ytStatsChannel) {
+        let subs = 'N/A';
+        try {
+          const axios = require('axios');
+          const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+          });
+          const match = data.match(/"subscriberCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
+          if (match && match[1]) {
+            subs = match[1].replace(' subscribers', '').replace(' subscriber', '');
+          }
+        } catch (err) {
+          console.error('Failed to scrape YT sub count:', err.message);
+        }
+        
+        const newStatus = `🎥 ${subs} Subscribers`;
+        await client.rest.put(`/channels/${cfg.ytStatsId}/voice-status`, {
+          body: { status: newStatus }
+        }).catch(err => console.error('Failed to set YT stats voice status:', err.message));
+      }
+
+      console.log(`[📊 Stats] Updated stats dashboard successfully.`);
+    } catch (err) {
+      console.error('[📊 Stats Error]', err.message);
+    }
+  };
+
+  // Run stats update every 10 minutes (600,000 ms)
+  setInterval(updateServerStats, 600000);
+  // Also run it 10 seconds after boot
+  setTimeout(updateServerStats, 10000);
 
 };
 
@@ -511,7 +575,51 @@ client.on('interactionCreate', async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options, guild, member } = interaction;
 
+    if (commandName === 'setup-stats') {
+      if (!member.permissions.has('Administrator')) {
+        return interaction.reply({ content: '❌ Only administrators can run this command.', ephemeral: true });
+      }
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const { ChannelType, PermissionFlagsBits } = require('discord.js');
+        const category = await guild.channels.create({
+          name: 'ʚ 🌴 ɞ : 𝑇𝐻𝐸𝑁𝐺𝐴 𝐾𝑂𝐿𝐴 ˅',
+          type: ChannelType.GuildCategory
+        });
 
+        const adminPerms = [
+          { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] },
+          { id: guild.members.me.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels] }
+        ];
+
+        const serverStats = await guild.channels.create({
+          name: 'Server Statistics :',
+          type: ChannelType.GuildVoice,
+          parent: category.id,
+          permissionOverwrites: adminPerms
+        });
+
+        const ytStats = await guild.channels.create({
+          name: 'YouTube Statistics :',
+          type: ChannelType.GuildVoice,
+          parent: category.id,
+          permissionOverwrites: adminPerms
+        });
+
+        const fs = require('fs');
+        const path = require('path');
+        fs.writeFileSync(path.join(__dirname, 'statsConfig.json'), JSON.stringify({
+          categoryId: category.id,
+          serverStatsId: serverStats.id,
+          ytStatsId: ytStats.id
+        }, null, 2));
+
+        return interaction.editReply({ content: '✅ Stats Dashboard created! It will populate the stats within 10 seconds.' });
+      } catch (err) {
+        console.error('Failed to setup stats:', err);
+        return interaction.editReply({ content: '❌ Failed to create stats dashboard.' });
+      }
+    }
     const targetChannelId = '1505909671918043258';
     // Check permission (must have access to the target channel)
     const targetChannel = guild.channels.cache.get(targetChannelId);
