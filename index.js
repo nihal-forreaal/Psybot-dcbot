@@ -189,6 +189,63 @@ const onReady = async () => {
 
 client.once('ready', onReady);
 
+// ---- One-Time Among Us Deal Announcement ----
+const dealFlagPath = path.join(__dirname, 'deal_sent.flag');
+client.once('ready', async () => {
+  if (fs.existsSync(dealFlagPath)) return; // Already sent, skip
+
+  try {
+    const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+    const dealChannel = await client.channels.fetch('1501237193996501003').catch(() => null);
+    if (!dealChannel) return;
+
+    const embed = new EmbedBuilder()
+      .setColor('#C51111')
+      .setTitle('\ud83d\udea8 DEAL ALERT — Among Us on PC!')
+      .setDescription(
+        `> *One of us... has a deal this good.* \ud83d\udd75\ufe0f\n\n` +
+        `**Among Us** is now available on the **Microsoft Store** at an unbeatable price!\n` +
+        `Jump into lobbies, find the Impostors, and survive the chaos with your crewmates.\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+      )
+      .addFields(
+        { name: '\ud83c\udff7\ufe0f Price', value: '## \u20b9161 only!', inline: true },
+        { name: '\ud83d\udecd\ufe0f Platform', value: 'Microsoft Store\n(PC / Xbox)', inline: true },
+        { name: '\ud83d\udc65 Players', value: '4 \u2013 15 Players\nOnline & Local', inline: true },
+        {
+          name: '\u2728 What You Get',
+          value:
+            '\u25aa\ufe0f Cross-play with mobile & console\n' +
+            '\u25aa\ufe0f Multiple maps: Skeld, Mira HQ, Polus & The Airship\n' +
+            '\u25aa\ufe0f Pets, cosmetics & hats\n' +
+            '\u25aa\ufe0f Voice chat support & custom lobbies\n' +
+            '\u25aa\ufe0f Regular free content updates',
+          inline: false
+        }
+      )
+      .setImage('https://store-images.s-microsoft.com/image/apps.63208.14391172489219718.b4744f40-5fdc-4e81-b90b-b37a9c2fdf07.f5d9fa96-0bf0-4b40-875f-23b15f1b8b22')
+      .setFooter({ text: 'Psybot Gaming Deals \u2022 Offer may change at any time', iconURL: client.user.displayAvatarURL() })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setLabel('\ud83d\udecd\ufe0f Buy on Microsoft Store')
+        .setStyle(ButtonStyle.Link)
+        .setURL('https://apps.microsoft.com/detail/9NG07QJNK38J?hl=en&gl=IN'),
+      new ButtonBuilder()
+        .setLabel('\ud83c\udfae Official Among Us Site')
+        .setStyle(ButtonStyle.Link)
+        .setURL('https://www.innersloth.com/games/among-us/')
+    );
+
+    await dealChannel.send({ content: '@everyone', embeds: [embed], components: [row] });
+    fs.writeFileSync(dealFlagPath, 'sent'); // Mark as sent so it never fires again
+    console.log('[\u2705 Deal] Among Us deal announcement sent!');
+  } catch (err) {
+    console.error('[Deal] Failed to send deal announcement:', err.message);
+  }
+});
+
 client.on('guildMemberAdd', async member => {
   try {
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
