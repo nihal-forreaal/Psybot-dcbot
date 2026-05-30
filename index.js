@@ -314,6 +314,30 @@ const updateServerStats = async () => {
 
 client.once('ready', onReady);
 
+// ---- One-Time Old Stats Cleanup ----
+const cleanupFlagPath = path.join(__dirname, 'cleanup_stats.flag');
+client.once('ready', async () => {
+  if (fs.existsSync(cleanupFlagPath)) return;
+  try {
+    const categoriesToDelete = ['1510312118845706361', '1510312122125516901'];
+    for (const catId of categoriesToDelete) {
+      const cat = client.channels.cache.get(catId);
+      if (cat) {
+        // Delete all child channels first
+        for (const [childId, child] of cat.children.cache) {
+          await child.delete().catch(() => {});
+        }
+        // Then delete the category itself
+        await cat.delete().catch(() => {});
+        console.log(`[🗑️ Cleanup] Deleted category ${catId}`);
+      }
+    }
+    fs.writeFileSync(cleanupFlagPath, 'done');
+  } catch (err) {
+    console.error('[Cleanup] Failed:', err.message);
+  }
+});
+
 // ---- One-Time Among Us Deal Announcement ----
 const dealFlagPath = path.join(__dirname, 'deal_sent.flag');
 client.once('ready', async () => {
