@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const dns = require('dns');
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
@@ -297,6 +297,11 @@ try {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   console.log(`[MESSAGE] Received from ${message.author.tag} (${message.author.id}) in ${message.guild?.name || 'DM'}: "${message.content}"`);
+
+  // Custom reaction for pinging specific user
+  if (message.mentions.users.has('1105072573580062790')) {
+    message.react('1510273361455091752').catch(err => console.error('Failed to react to specific ping:', err));
+  }
 
   // Custom random letter generator for channel 1445395976495042641
   if (message.channel.id === '1445395976495042641') {
