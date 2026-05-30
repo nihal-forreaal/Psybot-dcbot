@@ -3,13 +3,13 @@
     "roleId": "1510257749630652436",
     "label": "BGMI",
     "emoji": "<:bgmi:1510260966141591624>",
-    "style": "Primary"
+    "style": "Secondary"
   },
   {
     "roleId": "1510258014438031472",
     "label": "Roblox",
     "emoji": "<:roblox:1510260850139857018>",
-    "style": "Danger"
+    "style": "Secondary"
   },
   {
     "roleId": "1510258137511235705",
@@ -21,6 +21,6 @@
     "roleId": "1510258341241159911",
     "label": "Minecraft",
     "emoji": "⛏️",
-    "style": "Success"
+    "style": "Secondary"
   }
 ]
