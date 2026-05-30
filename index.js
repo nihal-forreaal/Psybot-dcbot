@@ -261,7 +261,8 @@ const updateServerStats = async () => {
 
     // 1. Update Server Stats
     if (membersChannel) {
-      const totalMembers = guild.memberCount;
+      const botsCount = guild.members.cache.filter(m => m.user.bot).size;
+      const totalMembers = guild.memberCount - botsCount;
       await membersChannel.setName(`👤 │ MEMBERS: ${totalMembers}`).catch(() => {});
     }
     if (botsChannel) {
@@ -274,23 +275,42 @@ const updateServerStats = async () => {
     if (subsChannel || viewsChannel || videosChannel) {
       try {
         const axios = require('axios');
-        const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
+        const { data } = await axios.get('https://www.youtube.com/@psybotlive/about', {
           headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
         });
         
-        const subMatch = data.match(/"subscriberCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
-        if (subMatch && subMatch[1]) {
-          subs = subMatch[1].replace(' subscribers', '').replace(' subscriber', '');
-        }
-        
-        const viewMatch = data.match(/([0-9,]+) views/);
-        if (viewMatch && viewMatch[1]) {
-          views = viewMatch[1];
-        }
+        const match = data.match(/var ytInitialData = (\{.*?\});<\/script>/);
+        if (match && match[1]) {
+          const ytData = JSON.parse(match[1]);
+          
+          function findKey(obj, key) {
+            if (obj !== null && typeof obj === 'object') {
+              if (key in obj) return obj[key];
+              for (const k in obj) {
+                const res = findKey(obj[k], key);
+                if (res !== undefined) return res;
+              }
+            }
+            return undefined;
+          }
 
-        const vidMatch = data.match(/"videoCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
-        if (vidMatch && vidMatch[1]) {
-          videos = vidMatch[1].replace(' videos', '').replace(' video', '');
+          const subObj = findKey(ytData, 'subscriberCountText');
+          if (subObj) {
+            const txt = subObj.simpleText || (subObj.accessibility && subObj.accessibility.accessibilityData && subObj.accessibility.accessibilityData.label);
+            if (txt) subs = txt.replace(/ subscribers?/i, '').trim();
+          }
+
+          const viewObj = findKey(ytData, 'viewCountText');
+          if (viewObj) {
+            const txt = viewObj.simpleText || (viewObj.accessibility && viewObj.accessibility.accessibilityData && viewObj.accessibility.accessibilityData.label);
+            if (txt) views = txt.replace(/ views?/i, '').trim();
+          }
+
+          const vidObj = findKey(ytData, 'videoCountText');
+          if (vidObj) {
+            const txt = vidObj.simpleText || (vidObj.accessibility && vidObj.accessibility.accessibilityData && vidObj.accessibility.accessibilityData.label);
+            if (txt) videos = txt.replace(/ videos?/i, '').trim();
+          }
         }
       } catch (err) {
         console.error('Failed to scrape YT stats:', err.message);
