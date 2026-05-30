@@ -1610,5 +1610,76 @@ setInterval(async () => {
   }
 }, 60000);
 
+// ==========================================
+// ADVANCED AUDIT LOGGER SYSTEM
+// ==========================================
+const LOG_CHANNEL_ID = '1505885380023418890';
+
+client.on('messageDelete', async message => {
+  if (message.author?.bot) return;
+  const channel = message.guild?.channels.cache.get(LOG_CHANNEL_ID);
+  if (!channel) return;
+  const { EmbedBuilder } = require('discord.js');
+  const embed = new EmbedBuilder()
+    .setTitle('🗑️ Message Deleted')
+    .setColor('#e74c3c')
+    .setDescription(`**Author:** ${message.author}\n**Channel:** <#${message.channel.id}>\n\n**Content:**\n${message.content || '*No text content (possibly an embed/attachment)*'}`)
+    .setTimestamp();
+  channel.send({ embeds: [embed] }).catch(() => {});
+});
+
+client.on('messageUpdate', async (oldMessage, newMessage) => {
+  if (newMessage.author?.bot) return;
+  if (oldMessage.content === newMessage.content) return; // Only log actual text changes
+  const channel = newMessage.guild?.channels.cache.get(LOG_CHANNEL_ID);
+  if (!channel) return;
+  const { EmbedBuilder } = require('discord.js');
+  
+  const oldContent = oldMessage.content ? oldMessage.content.substring(0, 1024) : '*None*';
+  const newContent = newMessage.content ? newMessage.content.substring(0, 1024) : '*None*';
+
+  const embed = new EmbedBuilder()
+    .setTitle('✏️ Message Edited')
+    .setColor('#f1c40f')
+    .setDescription(`**Author:** ${newMessage.author}\n**Channel:** <#${newMessage.channel.id}>\n[Jump to message](${newMessage.url})`)
+    .addFields(
+      { name: 'Original', value: oldContent },
+      { name: 'Edited', value: newContent }
+    )
+    .setTimestamp();
+  channel.send({ embeds: [embed] }).catch(() => {});
+});
+
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+  const channel = newMember.guild.channels.cache.get(LOG_CHANNEL_ID);
+  if (!channel) return;
+  const { EmbedBuilder } = require('discord.js');
+  
+  if (oldMember.roles.cache.size !== newMember.roles.cache.size) {
+    const oldRoles = oldMember.roles.cache.map(r => r.id);
+    const newRoles = newMember.roles.cache.map(r => r.id);
+    
+    const addedRoles = newRoles.filter(r => !oldRoles.includes(r));
+    const removedRoles = oldRoles.filter(r => !newRoles.includes(r));
+    
+    if (addedRoles.length > 0) {
+      const embed = new EmbedBuilder()
+        .setTitle('➕ Role Added')
+        .setColor('#2ecc71')
+        .setDescription(`**User:** ${newMember.user}\n**Role:** <@&${addedRoles[0]}>`)
+        .setTimestamp();
+      channel.send({ embeds: [embed] }).catch(() => {});
+    }
+    if (removedRoles.length > 0) {
+      const embed = new EmbedBuilder()
+        .setTitle('➖ Role Removed')
+        .setColor('#e74c3c')
+        .setDescription(`**User:** ${newMember.user}\n**Role:** <@&${removedRoles[0]}>`)
+        .setTimestamp();
+      channel.send({ embeds: [embed] }).catch(() => {});
+    }
+  }
+});
+
 client.login(process.env.TOKEN);
 
