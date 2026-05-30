@@ -283,19 +283,31 @@ const updateServerStats = async () => {
     if (subsChannel || viewsChannel) {
       try {
         const ytChannelInfo = require('yt-channel-info');
-        const ytData = await ytChannelInfo.getChannelInfo({ channelHandle: '@psybotlive' });
+        const ytData = await ytChannelInfo.getChannelInfo({ channelHandle: '@psybotlive' }).catch(() => null);
         
-        if (ytData && ytData.subscriberCount) {
-          subs = ytData.subscriberCount.replace(/ subscribers?/i, '').trim();
+        if (ytData) {
+          if (ytData.subscriberCount) {
+            subs = ytData.subscriberCount.replace(/ subscribers?/i, '').trim();
+          }
         }
-        // Using videoCount for views just in case yt-channel-info doesn't expose views for handles
-        // Actually, we'll try viewCount or leave it as N/A if it isn't in yt-channel-info.
+        
+        // yt-channel-info doesn't always return views for handles. Let's do a fast axios fallback for views.
+        const axios = require('axios');
+        const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        }).catch(() => ({ data: '' }));
+        
+        // This regex looks for the view count directly in the raw HTML string
+        const viewMatch = data.match(/([0-9,]+)\s*views/i) || data.match(/"viewCountText":{"simpleText":"([^"]+)"/i);
+        if (viewMatch && viewMatch[1]) {
+          views = viewMatch[1].replace(/ views?/i, '').trim();
+        }
       } catch (err) {
-        console.error('Failed to scrape YT stats via yt-channel-info:', err.message);
+        console.error('Failed to scrape YT stats:', err.message);
       }
       
       if (subsChannel) await subsChannel.setName(`Subscribers: ${subs}`).catch(() => {});
-      if (viewsChannel) await viewsChannel.setName(`Views: 7.34 Cr`).catch(() => {}); // Hardcoded to match user image since yt-channel-info might not expose views
+      if (viewsChannel) await viewsChannel.setName(`Views: ${views}`).catch(() => {});
     }
 
     console.log(`[📊 Stats] Updated stats dashboard successfully.`);
