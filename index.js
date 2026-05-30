@@ -1251,7 +1251,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
         }
       }
 
-      if (customVCOwnerId) {
+      if (customVCOwnerId && customVCOwnerId !== newState.member.user.id) {
         try {
           await newState.channel.send(`👋 Welcome ${newState.member}! You have joined <@${customVCOwnerId}>'s room.`);
         } catch (err) {
