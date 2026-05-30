@@ -416,26 +416,8 @@ function getLogConfig() {
 client.on('interactionCreate', async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options, guild, member } = interaction;
-    const targetChannelId = '1505909671918043258';
-    
-    // Check permission (must have access to the target channel)
-    const targetChannel = guild.channels.cache.get(targetChannelId);
-    if (!targetChannel) {
-      return interaction.reply({ content: '❌ The required moderation channel does not exist.', ephemeral: true });
-    }
 
-    const permissions = targetChannel.permissionsFor(member);
-    if (!permissions || !permissions.has('ViewChannel') || !permissions.has('SendMessages')) {
-      return interaction.reply({ content: '❌ You do not have permission to use this command (must have access to channel 1505909671918043258).', ephemeral: true });
-    }
-
-    const targetUser = options.getUser('user');
-    const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
-
-    if (!targetMember) {
-      return interaction.reply({ content: '❌ Member not found in this server.', ephemeral: true });
-    }
-
+    // ---- /setup-logs (no user option, handle first) ----
     if (commandName === 'setup-logs') {
       if (!member.permissions.has('Administrator')) {
         return interaction.reply({ content: '❌ Only administrators can run this command.', ephemeral: true });
@@ -447,29 +429,41 @@ client.on('interactionCreate', async interaction => {
       if (!category) {
         return interaction.editReply({ content: '❌ Could not find the log category. Check the category ID.' });
       }
-
       // Delete all existing channels in that category
       const existing = guild.channels.cache.filter(c => c.parentId === LOG_CATEGORY_ID);
       for (const [, ch] of existing) {
         await ch.delete('setup-logs: rebuilding log channels').catch(() => {});
       }
-
       // Create the 4 log channels
       const everyoneId = guild.roles.everyone.id;
       const adminPerms = [
         { id: everyoneId, deny: ['ViewChannel'] },
         { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'] }
       ];
-      const msgLog   = await guild.channels.create({ name: 'message-log',  type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-      const voiceLog = await guild.channels.create({ name: 'voice-log',    type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-      const muteLog  = await guild.channels.create({ name: 'mute-log',     type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-      const roleLog  = await guild.channels.create({ name: 'role-log',     type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-
+      const msgLog   = await guild.channels.create({ name: 'message-log', type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+      const voiceLog = await guild.channels.create({ name: 'voice-log',   type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+      const muteLog  = await guild.channels.create({ name: 'mute-log',    type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+      const roleLog  = await guild.channels.create({ name: 'role-log',    type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
       // Save channel IDs to logConfig.json
       const cfg = { messageLog: msgLog.id, voiceLog: voiceLog.id, muteLog: muteLog.id, roleLog: roleLog.id };
       fs.writeFileSync(logConfigPath, JSON.stringify(cfg, null, 2));
-
       return interaction.editReply({ content: `<:tick:1510274177486028860> Log channels created!\n📝 <#${msgLog.id}> | 🎙️ <#${voiceLog.id}> | 🔇 <#${muteLog.id}> | 🎭 <#${roleLog.id}>` });
+    }
+
+    const targetChannelId = '1505909671918043258';
+    // Check permission (must have access to the target channel)
+    const targetChannel = guild.channels.cache.get(targetChannelId);
+    if (!targetChannel) {
+      return interaction.reply({ content: '❌ The required moderation channel does not exist.', ephemeral: true });
+    }
+    const permissions = targetChannel.permissionsFor(member);
+    if (!permissions || !permissions.has('ViewChannel') || !permissions.has('SendMessages')) {
+      return interaction.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
+    }
+    const targetUser = options.getUser('user');
+    const targetMember = await guild.members.fetch(targetUser.id).catch(() => null);
+    if (!targetMember) {
+      return interaction.reply({ content: '❌ Member not found in this server.', ephemeral: true });
     }
 
     if (commandName === 'kick') {
