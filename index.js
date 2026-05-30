@@ -125,11 +125,6 @@ const onReady = async () => {
           required: false,
         }
       ]
-    },
-    {
-      name: 'setup-logs',
-      description: 'Creates all log channels inside the existing log category. Admin only.',
-      defaultMemberPermissions: '8'
     }
   ];
 
@@ -145,6 +140,49 @@ const onReady = async () => {
     }
   } catch (err) {
     console.error('Error deploying slash commands:', err);
+  }
+
+  // Auto-setup log channels on startup
+  const { ChannelType } = require('discord.js');
+  const LOG_CATEGORY_ID = '1505885380023418890';
+  const logCfg = getLogConfig();
+  const allLogsExist = logCfg.messageLog && logCfg.voiceLog && logCfg.muteLog && logCfg.roleLog;
+  if (!allLogsExist) {
+    try {
+      for (const guild of client.guilds.cache.values()) {
+        const category = guild.channels.cache.get(LOG_CATEGORY_ID);
+        if (!category) continue;
+
+        // Rename the category with a proper emoji
+        await category.setName('📋 Server Logs').catch(() => {});
+
+        // Delete old channels in the category
+        const existing = guild.channels.cache.filter(c => c.parentId === LOG_CATEGORY_ID);
+        for (const [, ch] of existing) {
+          await ch.delete('Auto log setup: rebuilding').catch(() => {});
+        }
+
+        const everyoneId = guild.roles.everyone.id;
+        const adminPerms = [
+          { id: everyoneId, deny: ['ViewChannel'] },
+          { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'] }
+        ];
+
+        const msgLog   = await guild.channels.create({ name: '📝│message-log',  type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+        const voiceLog = await guild.channels.create({ name: '🎙️│voice-log',    type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+        const muteLog  = await guild.channels.create({ name: '🔇│mute-log',     type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+        const roleLog  = await guild.channels.create({ name: '🎭│role-log',     type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
+
+        const newCfg = { messageLog: msgLog.id, voiceLog: voiceLog.id, muteLog: muteLog.id, roleLog: roleLog.id };
+        fs.writeFileSync(logConfigPath, JSON.stringify(newCfg, null, 2));
+        console.log(`[✅ Log Setup] Created log channels in ${guild.name}`);
+        break; // Only set up once for the first guild found
+      }
+    } catch (err) {
+      console.error('[Log Setup] Failed to auto-create log channels:', err.message);
+    }
+  } else {
+    console.log('[✅ Log Setup] Log channels already configured, skipping auto-setup.');
   }
 
 };
@@ -416,38 +454,6 @@ client.on('interactionCreate', async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options, guild, member } = interaction;
 
-    // ---- /setup-logs (no user option, handle first) ----
-    if (commandName === 'setup-logs') {
-      if (!member.permissions.has('Administrator')) {
-        return interaction.reply({ content: '❌ Only administrators can run this command.', ephemeral: true });
-      }
-      await interaction.deferReply({ ephemeral: true });
-      const { ChannelType } = require('discord.js');
-      const LOG_CATEGORY_ID = '1505885380023418890';
-      const category = guild.channels.cache.get(LOG_CATEGORY_ID);
-      if (!category) {
-        return interaction.editReply({ content: '❌ Could not find the log category. Check the category ID.' });
-      }
-      // Delete all existing channels in that category
-      const existing = guild.channels.cache.filter(c => c.parentId === LOG_CATEGORY_ID);
-      for (const [, ch] of existing) {
-        await ch.delete('setup-logs: rebuilding log channels').catch(() => {});
-      }
-      // Create the 4 log channels
-      const everyoneId = guild.roles.everyone.id;
-      const adminPerms = [
-        { id: everyoneId, deny: ['ViewChannel'] },
-        { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'] }
-      ];
-      const msgLog   = await guild.channels.create({ name: 'message-log', type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-      const voiceLog = await guild.channels.create({ name: 'voice-log',   type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-      const muteLog  = await guild.channels.create({ name: 'mute-log',    type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-      const roleLog  = await guild.channels.create({ name: 'role-log',    type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-      // Save channel IDs to logConfig.json
-      const cfg = { messageLog: msgLog.id, voiceLog: voiceLog.id, muteLog: muteLog.id, roleLog: roleLog.id };
-      fs.writeFileSync(logConfigPath, JSON.stringify(cfg, null, 2));
-      return interaction.editReply({ content: `<:tick:1510274177486028860> Log channels created!\n📝 <#${msgLog.id}> | 🎙️ <#${voiceLog.id}> | 🔇 <#${muteLog.id}> | 🎭 <#${roleLog.id}>` });
-    }
 
     const targetChannelId = '1505909671918043258';
     // Check permission (must have access to the target channel)
