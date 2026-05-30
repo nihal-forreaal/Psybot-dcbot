@@ -21,11 +21,14 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.DirectMessages
   ],
   partials: [
     Partials.Channel,
-    Partials.Message
+    Partials.Message,
+    Partials.Reaction,
+    Partials.GuildMember
   ]
 });
 
@@ -1657,6 +1660,10 @@ setInterval(async () => {
 // ADVANCED AUDIT LOGGER SYSTEM
 // ==========================================
 client.on('messageDelete', async message => {
+  // Fetch full message if partial (not in cache)
+  if (message.partial) {
+    try { await message.fetch(); } catch { return; }
+  }
   if (message.author?.bot) return;
   const cfg = getLogConfig();
   if (!cfg.messageLog) return;
@@ -1666,12 +1673,20 @@ client.on('messageDelete', async message => {
   const embed = new EmbedBuilder()
     .setTitle('🗑️ Message Deleted')
     .setColor('#e74c3c')
-    .setDescription(`**Author:** ${message.author}\n**Channel:** <#${message.channel.id}>\n\n**Content:**\n${message.content || '*No text content (possibly an embed/attachment)*'}`)
+    .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+    .setDescription(`**Author:** ${message.author} (\`${message.author.tag}\`)
+**Channel:** <#${message.channel.id}>
+**Message ID:** \`${message.id}\`
+
+**Content:**
+${message.content || '*No text content (possibly an embed or attachment)*'}`)
     .setTimestamp();
   channel.send({ embeds: [embed] }).catch(() => {});
 });
 
 client.on('messageUpdate', async (oldMessage, newMessage) => {
+  if (oldMessage.partial) { try { await oldMessage.fetch(); } catch { return; } }
+  if (newMessage.partial) { try { await newMessage.fetch(); } catch { return; } }
   if (newMessage.author?.bot) return;
   if (oldMessage.content === newMessage.content) return;
   const cfg = getLogConfig();
@@ -1684,10 +1699,13 @@ client.on('messageUpdate', async (oldMessage, newMessage) => {
   const embed = new EmbedBuilder()
     .setTitle('✏️ Message Edited')
     .setColor('#f1c40f')
-    .setDescription(`**Author:** ${newMessage.author}\n**Channel:** <#${newMessage.channel.id}>\n[Jump to message](${newMessage.url})`)
+    .setThumbnail(newMessage.author.displayAvatarURL({ dynamic: true }))
+    .setDescription(`**Author:** ${newMessage.author} (\`${newMessage.author.tag}\`)
+**Channel:** <#${newMessage.channel.id}>
+[Jump to message](${newMessage.url})`)
     .addFields(
-      { name: 'Before', value: oldContent },
-      { name: 'After', value: newContent }
+      { name: '📝 Before', value: oldContent },
+      { name: '✅ After', value: newContent }
     )
     .setTimestamp();
   channel.send({ embeds: [embed] }).catch(() => {});
