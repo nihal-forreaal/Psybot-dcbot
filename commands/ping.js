@@ -33,17 +33,31 @@ module.exports = {
     const djsVersion = require('discord.js').version;
     const platform = `${os.type()} ${os.arch()}`;
 
+    // CPU Info
+    const cpus = os.cpus();
+    const cpuModel = cpus[0] ? cpus[0].model.trim() : 'Unknown';
+    const cpuCores = cpus.length;
+
+    // Bot Statistics
+    const guildCount = message.client.guilds.cache.size;
+    const channelCount = message.client.channels.cache.size;
+    const userCount = message.client.guilds.cache.reduce((acc, guild) => acc + guild.memberCount, 0);
+
+    // OS Uptime
+    const osUptimeDays = Math.floor(os.uptime() / 86400);
+
     const embed = new EmbedBuilder()
-      .setTitle('🏓 Psybot System Diagnostics')
+      .setTitle('🏓 Psybot Advanced System Diagnostics')
       .setColor('#0f8c8c')
-      .setDescription('Live latency metrics and system resource indicators.')
+      .setDescription('Extensive live latency metrics, system resources, and bot statistics.')
       .addFields(
-        { name: '📡 Gateway Latency', value: `\`${gateway}ms\` (${getStatusEmoji(gateway)})`, inline: true },
-        { name: '⚡ Message Roundtrip', value: `\`${roundtrip}ms\` (${getStatusEmoji(roundtrip)})`, inline: true },
-        { name: '⏱️ Bot Uptime', value: `\`${uptimeString}\``, inline: true },
-        { name: '💾 Memory Usage', value: `\`${memUsage} MB\` / \`${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)} GB\``, inline: true },
-        { name: '⚙️ Environment', value: `Node: \`${nodeVersion}\`\nLibrary: \`discord.js v${djsVersion}\``, inline: true },
-        { name: '🖥️ Platform', value: `\`${platform}\``, inline: true }
+        { name: '📡 Network Latency', value: `Gateway: \`${gateway}ms\` (${getStatusEmoji(gateway)})\nRoundtrip: \`${roundtrip}ms\` (${getStatusEmoji(roundtrip)})`, inline: false },
+        { name: '📊 Bot Statistics', value: `Servers: \`${guildCount}\`\nChannels: \`${channelCount}\`\nTotal Users: \`${userCount}\``, inline: true },
+        { name: '⏱️ Uptimes', value: `Bot: \`${uptimeString}\`\nHost Server: \`${osUptimeDays} days\``, inline: true },
+        { name: '💻 CPU Configuration', value: `Model: \`${cpuModel}\`\nLogical Cores: \`${cpuCores}\``, inline: false },
+        { name: '💾 Memory Usage', value: `Process Heap: \`${memUsage} MB\`\nHost Total: \`${(os.totalmem() / 1024 / 1024 / 1024).toFixed(2)} GB\``, inline: true },
+        { name: '⚙️ Environment', value: `Node.js: \`${nodeVersion}\`\nDiscord.js: \`v${djsVersion}\``, inline: true },
+        { name: '🖥️ Platform Host', value: `OS: \`${platform}\``, inline: true }
       )
       .setFooter({ text: `Requested by ${message.author.tag}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
       .setTimestamp();
