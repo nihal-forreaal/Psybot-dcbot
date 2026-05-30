@@ -308,11 +308,16 @@ const updateServerStats = async () => {
           }
           
           const axios = require('axios');
-          const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
+          const { data } = await axios.get('https://www.youtube.com/@psybotlive/about', {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
           }).catch(() => ({ data: '' }));
           
-          const viewMatch = data.match(/([0-9,]+)\s*views/i) || data.match(/"viewCountText":{"simpleText":"([^"]+)"/i);
+          const subMatch = data.match(/"subscriberCountText":\{"simpleText":"([^"]+)"/i) || data.match(/{"accessibilityData":{"label":"([^"]+ subscribers)"}}/i);
+          if (subMatch && subMatch[1] && subs === 'N/A') {
+            subs = subMatch[1].replace(/ subscribers?/i, '').trim();
+          }
+
+          const viewMatch = data.match(/"viewCountText":\{"simpleText":"([^"]+)"/i);
           if (viewMatch && viewMatch[1]) {
             views = viewMatch[1].replace(/ views?/i, '').trim();
           }
