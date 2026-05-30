@@ -75,6 +75,7 @@ Below is the directory of prefix commands (`!`) loaded dynamically from the `com
 
 | Command | Category | Description | Permissions |
 | :--- | :--- | :--- | :--- |
+| `!rrpanel` | Roles | Send the interactive Reaction Roles panel. | Admin Role |
 | `!vcpanel` | Voice | Show VC management panel for your dynamic voice channel. | VC Creator |
 | `!ticket` | Tickets | Send the ticket system button panel. | Admin Role |
 | `!close` | Tickets | Close the current ticket channel. | Staff / Admin |

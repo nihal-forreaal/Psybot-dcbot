@@ -667,6 +667,23 @@ client.on('interactionCreate', async interaction => {
 
   if (!interaction.isButton()) return;
 
+  if (interaction.customId.startsWith('rr_')) {
+    const roleId = interaction.customId.replace('rr_', '');
+    const member = interaction.member;
+    try {
+      if (member.roles.cache.has(roleId)) {
+        await member.roles.remove(roleId);
+        return interaction.reply({ content: `❌ You have removed the <@&${roleId}> role.`, ephemeral: true });
+      } else {
+        await member.roles.add(roleId);
+        return interaction.reply({ content: `✅ You have been granted the <@&${roleId}> role!`, ephemeral: true });
+      }
+    } catch (err) {
+      console.error('Error assigning reaction role:', err);
+      return interaction.reply({ content: '❌ I failed to update your roles. Please check my role hierarchy and ensure the bot role is above the reaction roles.', ephemeral: true });
+    }
+  }
+
   if (interaction.customId === 'create_ticket') {
     await interaction.deferReply({ ephemeral: true });
     const { ChannelType, PermissionFlagsBits } = require('discord.js');
