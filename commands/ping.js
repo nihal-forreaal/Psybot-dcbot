@@ -77,7 +77,7 @@ module.exports = {
     let ispProvider = 'UNKNOWN PROVIDER';
     let geoRegion = 'Unknown Location';
     try {
-      const res = await axios.get('http://ip-api.com/json/');
+      const res = await axios.get('http://ip-api.com/json/', { timeout: 2000 });
       if (res.data && res.data.status === 'success') {
         ispProvider = res.data.isp.toUpperCase();
         geoRegion = `${res.data.city}, ${res.data.regionName}, ${res.data.country}`;
