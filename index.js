@@ -291,7 +291,12 @@ const updateServerStats = async () => {
           
           if (data && data.items && data.items.length > 0) {
             const stats = data.items[0].statistics;
-            if (stats.subscriberCount) subs = Number(stats.subscriberCount).toLocaleString();
+            if (stats.subscriberCount) {
+              let num = Number(stats.subscriberCount);
+              if (num >= 1000000) subs = (num / 1000000).toFixed(2) + 'M';
+              else if (num >= 1000) subs = (num / 1000).toFixed(2) + 'K';
+              else subs = num.toString();
+            }
             if (stats.viewCount) views = Number(stats.viewCount).toLocaleString();
           }
         } else {
