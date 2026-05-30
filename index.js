@@ -191,77 +191,77 @@ const onReady = async () => {
     console.log('[✅ Log Setup] Log channels already configured, skipping auto-setup.');
   }
 
-  // ---- Server Stats Dashboard Auto-Updater ----
-  const statsConfigPath = path.join(__dirname, 'statsConfig.json');
-  const updateServerStats = async () => {
-    try {
-      if (!fs.existsSync(statsConfigPath)) return;
-      const cfg = JSON.parse(fs.readFileSync(statsConfigPath, 'utf8'));
-      if (!cfg.membersId) return;
-
-      const guild = client.guilds.cache.first();
-      if (!guild) return;
-      await guild.members.fetch(); // Ensure all members are cached
-
-      const membersChannel = guild.channels.cache.get(cfg.membersId);
-      const botsChannel = guild.channels.cache.get(cfg.botsId);
-      const subsChannel = guild.channels.cache.get(cfg.subsId);
-      const viewsChannel = guild.channels.cache.get(cfg.viewsId);
-      const videosChannel = guild.channels.cache.get(cfg.videosId);
-
-      // 1. Update Server Stats
-      if (membersChannel) {
-        const totalMembers = guild.memberCount;
-        await membersChannel.setName(`👤 │ MEMBERS: ${totalMembers}`).catch(() => {});
-      }
-      if (botsChannel) {
-        const botsCount = guild.members.cache.filter(m => m.user.bot).size;
-        await botsChannel.setName(`🤖 │ BOTS: ${botsCount}`).catch(() => {});
-      }
-
-      // 2. Update YouTube Stats
-      let subs = 'N/A', views = 'N/A', videos = 'N/A';
-      if (subsChannel || viewsChannel || videosChannel) {
-        try {
-          const axios = require('axios');
-          const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-          });
-          
-          const subMatch = data.match(/"subscriberCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
-          if (subMatch && subMatch[1]) {
-            subs = subMatch[1].replace(' subscribers', '').replace(' subscriber', '');
-          }
-          
-          const viewMatch = data.match(/([0-9,]+) views/);
-          if (viewMatch && viewMatch[1]) {
-            views = viewMatch[1];
-          }
-
-          const vidMatch = data.match(/"videoCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
-          if (vidMatch && vidMatch[1]) {
-            videos = vidMatch[1].replace(' videos', '').replace(' video', '');
-          }
-        } catch (err) {
-          console.error('Failed to scrape YT stats:', err.message);
-        }
-        
-        if (subsChannel) await subsChannel.setName(`Subs: ${subs}`).catch(() => {});
-        if (viewsChannel) await viewsChannel.setName(`Views: ${views}`).catch(() => {});
-        if (videosChannel) await videosChannel.setName(`Videos: ${videos}`).catch(() => {});
-      }
-
-      console.log(`[📊 Stats] Updated stats dashboard successfully.`);
-    } catch (err) {
-      console.error('[📊 Stats Error]', err.message);
-    }
-  };
-
   // Run stats update every 10 minutes (600,000 ms)
   setInterval(updateServerStats, 600000);
   // Also run it 10 seconds after boot
   setTimeout(updateServerStats, 10000);
 
+};
+
+// ---- Server Stats Dashboard Auto-Updater ----
+const statsConfigPath = path.join(__dirname, 'statsConfig.json');
+const updateServerStats = async () => {
+  try {
+    if (!fs.existsSync(statsConfigPath)) return;
+    const cfg = JSON.parse(fs.readFileSync(statsConfigPath, 'utf8'));
+    if (!cfg.membersId) return;
+
+    const guild = client.guilds.cache.first();
+    if (!guild) return;
+    await guild.members.fetch(); // Ensure all members are cached
+
+    const membersChannel = guild.channels.cache.get(cfg.membersId);
+    const botsChannel = guild.channels.cache.get(cfg.botsId);
+    const subsChannel = guild.channels.cache.get(cfg.subsId);
+    const viewsChannel = guild.channels.cache.get(cfg.viewsId);
+    const videosChannel = guild.channels.cache.get(cfg.videosId);
+
+    // 1. Update Server Stats
+    if (membersChannel) {
+      const totalMembers = guild.memberCount;
+      await membersChannel.setName(`👤 │ MEMBERS: ${totalMembers}`).catch(() => {});
+    }
+    if (botsChannel) {
+      const botsCount = guild.members.cache.filter(m => m.user.bot).size;
+      await botsChannel.setName(`🤖 │ BOTS: ${botsCount}`).catch(() => {});
+    }
+
+    // 2. Update YouTube Stats
+    let subs = 'N/A', views = 'N/A', videos = 'N/A';
+    if (subsChannel || viewsChannel || videosChannel) {
+      try {
+        const axios = require('axios');
+        const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        });
+        
+        const subMatch = data.match(/"subscriberCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
+        if (subMatch && subMatch[1]) {
+          subs = subMatch[1].replace(' subscribers', '').replace(' subscriber', '');
+        }
+        
+        const viewMatch = data.match(/([0-9,]+) views/);
+        if (viewMatch && viewMatch[1]) {
+          views = viewMatch[1];
+        }
+
+        const vidMatch = data.match(/"videoCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
+        if (vidMatch && vidMatch[1]) {
+          videos = vidMatch[1].replace(' videos', '').replace(' video', '');
+        }
+      } catch (err) {
+        console.error('Failed to scrape YT stats:', err.message);
+      }
+      
+      if (subsChannel) await subsChannel.setName(`Subs: ${subs}`).catch(() => {});
+      if (viewsChannel) await viewsChannel.setName(`Views: ${views}`).catch(() => {});
+      if (videosChannel) await videosChannel.setName(`Videos: ${videos}`).catch(() => {});
+    }
+
+    console.log(`[📊 Stats] Updated stats dashboard successfully.`);
+  } catch (err) {
+    console.error('[📊 Stats Error]', err.message);
+  }
 };
 
 client.once('ready', onReady);
@@ -664,7 +664,12 @@ client.on('interactionCreate', async interaction => {
           videosId: videosChannel.id
         }, null, 2));
 
-        return interaction.editReply({ content: '✅ Stats Dashboard created! It will populate the stats within 10 seconds.' });
+        await interaction.editReply({ content: '✅ Stats Dashboard created! Syncing stats now...' });
+        
+        // Trigger initial sync immediately
+        await updateServerStats();
+        
+        return;
       } catch (err) {
         console.error('Failed to setup stats:', err);
         return interaction.editReply({ content: '❌ Failed to create stats dashboard.' });
