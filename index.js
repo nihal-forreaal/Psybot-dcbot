@@ -197,45 +197,58 @@ const onReady = async () => {
     try {
       if (!fs.existsSync(statsConfigPath)) return;
       const cfg = JSON.parse(fs.readFileSync(statsConfigPath, 'utf8'));
-      if (!cfg.categoryId || !cfg.serverStatsId || !cfg.ytStatsId) return;
+      if (!cfg.membersId) return;
 
       const guild = client.guilds.cache.first();
       if (!guild) return;
       await guild.members.fetch(); // Ensure all members are cached
 
-      const serverStatsChannel = guild.channels.cache.get(cfg.serverStatsId);
-      const ytStatsChannel = guild.channels.cache.get(cfg.ytStatsId);
+      const membersChannel = guild.channels.cache.get(cfg.membersId);
+      const botsChannel = guild.channels.cache.get(cfg.botsId);
+      const subsChannel = guild.channels.cache.get(cfg.subsId);
+      const viewsChannel = guild.channels.cache.get(cfg.viewsId);
+      const videosChannel = guild.channels.cache.get(cfg.videosId);
 
-      // Update Server Stats: 🦋 [online] Online 🦋 [members] Members
-      if (serverStatsChannel) {
+      // 1. Update Server Stats
+      if (membersChannel) {
         const totalMembers = guild.memberCount;
-        const onlineMembers = guild.members.cache.filter(m => m.presence && m.presence.status !== 'offline').size;
-        const newStatus = `🦋 ${onlineMembers} Online 🦋 ${totalMembers} Members`;
-        await client.rest.put(`/channels/${cfg.serverStatsId}/voice-status`, {
-          body: { status: newStatus }
-        }).catch(err => console.error('Failed to set server stats voice status:', err.message));
+        await membersChannel.setName(`👤 │ MEMBERS: ${totalMembers}`).catch(() => {});
+      }
+      if (botsChannel) {
+        const botsCount = guild.members.cache.filter(m => m.user.bot).size;
+        await botsChannel.setName(`🤖 │ BOTS: ${botsCount}`).catch(() => {});
       }
 
-      // Update YouTube Stats: 🎥 [subs] Subscribers
-      if (ytStatsChannel) {
-        let subs = 'N/A';
+      // 2. Update YouTube Stats
+      let subs = 'N/A', views = 'N/A', videos = 'N/A';
+      if (subsChannel || viewsChannel || videosChannel) {
         try {
           const axios = require('axios');
           const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
           });
-          const match = data.match(/"subscriberCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
-          if (match && match[1]) {
-            subs = match[1].replace(' subscribers', '').replace(' subscriber', '');
+          
+          const subMatch = data.match(/"subscriberCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
+          if (subMatch && subMatch[1]) {
+            subs = subMatch[1].replace(' subscribers', '').replace(' subscriber', '');
+          }
+          
+          const viewMatch = data.match(/([0-9,]+) views/);
+          if (viewMatch && viewMatch[1]) {
+            views = viewMatch[1];
+          }
+
+          const vidMatch = data.match(/"videoCountText":{"accessibility":{"accessibilityData":{"label":"([^"]+)"}}/);
+          if (vidMatch && vidMatch[1]) {
+            videos = vidMatch[1].replace(' videos', '').replace(' video', '');
           }
         } catch (err) {
-          console.error('Failed to scrape YT sub count:', err.message);
+          console.error('Failed to scrape YT stats:', err.message);
         }
         
-        const newStatus = `🎥 ${subs} Subscribers`;
-        await client.rest.put(`/channels/${cfg.ytStatsId}/voice-status`, {
-          body: { status: newStatus }
-        }).catch(err => console.error('Failed to set YT stats voice status:', err.message));
+        if (subsChannel) await subsChannel.setName(`Subs: ${subs}`).catch(() => {});
+        if (viewsChannel) await viewsChannel.setName(`Views: ${views}`).catch(() => {});
+        if (videosChannel) await videosChannel.setName(`Videos: ${videos}`).catch(() => {});
       }
 
       console.log(`[📊 Stats] Updated stats dashboard successfully.`);
@@ -330,9 +343,14 @@ client.on('guildMemberAdd', async member => {
       components: [new ActionRowBuilder().addComponents(channelButton)],
     };
 
-    await member.send(welcomeMessage); // BUG FIX: removed duplicate send
+    const welcomeChannel = await member.guild.channels.fetch('1445406874231898153').catch(() => null);
+    if (welcomeChannel) {
+      await welcomeChannel.send(welcomeMessage);
+    } else {
+      console.warn('Welcome channel 1445406874231898153 not found.');
+    }
   } catch (err) {
-    console.error(`Could not DM new member ${member.user.tag}:`, err.message);
+    console.error(`Could not send welcome message for ${member.user.tag}:`, err.message);
   }
 });
 
@@ -582,36 +600,68 @@ client.on('interactionCreate', async interaction => {
       await interaction.deferReply({ ephemeral: true });
       try {
         const { ChannelType, PermissionFlagsBits } = require('discord.js');
-        const category = await guild.channels.create({
-          name: 'ʚ 🌴 ɞ : 𝑇𝐻𝐸𝑁𝐺𝐴 𝐾𝑂𝐿𝐴 ˅',
-          type: ChannelType.GuildCategory
-        });
-
         const adminPerms = [
           { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] },
           { id: guild.members.me.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels] }
         ];
 
-        const serverStats = await guild.channels.create({
-          name: 'Server Statistics :',
+        // Category 1: Server Status
+        const serverCat = await guild.channels.create({
+          name: '╔ 📊 𝐒𝐄𝐑𝐕𝐄𝐑 𝐒𝐓𝐀𝐓𝐔𝐒 📊 ╗',
+          type: ChannelType.GuildCategory
+        });
+
+        const membersChannel = await guild.channels.create({
+          name: '👤 │ MEMBERS: 0',
           type: ChannelType.GuildVoice,
-          parent: category.id,
+          parent: serverCat.id,
           permissionOverwrites: adminPerms
         });
 
-        const ytStats = await guild.channels.create({
-          name: 'YouTube Statistics :',
+        const botsChannel = await guild.channels.create({
+          name: '🤖 │ BOTS: 0',
           type: ChannelType.GuildVoice,
-          parent: category.id,
+          parent: serverCat.id,
+          permissionOverwrites: adminPerms
+        });
+
+        // Category 2: YouTube Stats
+        const ytCat = await guild.channels.create({
+          name: 'Psybot • YouTube Stats ˅',
+          type: ChannelType.GuildCategory
+        });
+
+        const subsChannel = await guild.channels.create({
+          name: 'Subs: N/A',
+          type: ChannelType.GuildVoice,
+          parent: ytCat.id,
+          permissionOverwrites: adminPerms
+        });
+
+        const viewsChannel = await guild.channels.create({
+          name: 'Views: N/A',
+          type: ChannelType.GuildVoice,
+          parent: ytCat.id,
+          permissionOverwrites: adminPerms
+        });
+
+        const videosChannel = await guild.channels.create({
+          name: 'Videos: N/A',
+          type: ChannelType.GuildVoice,
+          parent: ytCat.id,
           permissionOverwrites: adminPerms
         });
 
         const fs = require('fs');
         const path = require('path');
         fs.writeFileSync(path.join(__dirname, 'statsConfig.json'), JSON.stringify({
-          categoryId: category.id,
-          serverStatsId: serverStats.id,
-          ytStatsId: ytStats.id
+          serverCatId: serverCat.id,
+          ytCatId: ytCat.id,
+          membersId: membersChannel.id,
+          botsId: botsChannel.id,
+          subsId: subsChannel.id,
+          viewsId: viewsChannel.id,
+          videosId: videosChannel.id
         }, null, 2));
 
         return interaction.editReply({ content: '✅ Stats Dashboard created! It will populate the stats within 10 seconds.' });
