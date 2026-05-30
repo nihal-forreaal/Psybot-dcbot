@@ -11,32 +11,41 @@ module.exports = {
       return message.reply('❌ You are not authorized to run this command in DMs.');
     }
 
-    if (!args[0]) {
-      return message.reply('❌ Please specify a link. Usage: `!startlink <link> [characters_count] [interval_ms] [target_channel_id_or_webhook_url]`');
+    const defaultLink = process.env.DEFAULT_LINK || 'https://shop.thengakola.fun/gift/47c1d0b38af6';
+    let link = defaultLink;
+    let charCount = 12;
+    let interval = 5000;
+    let target = null;
+
+    let linkArgPassed = false;
+    if (args[0] && (args[0].startsWith('http://') || args[0].startsWith('https://'))) {
+      link = args[0];
+      linkArgPassed = true;
     }
 
-    const link = args[0];
-    
-    let charCount = 12;
-    if (args[1]) {
-      const parsed = parseInt(args[1], 10);
+    let shiftIndex = linkArgPassed ? 1 : 0;
+
+    if (args[shiftIndex]) {
+      const parsed = parseInt(args[shiftIndex], 10);
       if (!isNaN(parsed) && parsed > 0) {
         charCount = parsed;
       }
     }
 
-    let interval = 5000;
-    if (args[2]) {
-      const parsedInterval = parseInt(args[2], 10);
+    if (args[shiftIndex + 1]) {
+      const parsedInterval = parseInt(args[shiftIndex + 1], 10);
       if (!isNaN(parsedInterval) && parsedInterval >= 500) {
         interval = parsedInterval;
       }
     }
 
+    if (args[shiftIndex + 2]) {
+      target = args[shiftIndex + 2];
+    }
+
     const client = message.client;
 
     // Determine target (channel ID, webhook URL, or user ID for DM)
-    let target = args[3];
     if (!target) {
       if (message.guild) {
         target = message.channel.id;

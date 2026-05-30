@@ -7,12 +7,9 @@ if (dns.setDefaultResultOrder) {
 const fs = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
-const levelsUtil = require('./levelsUtil');
-
 const prefix = process.env.PREFIX || '!';
 const ticketsPath = path.join(__dirname, 'tickets.json');
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '1505164182767800411';
-const AI_CATEGORY_ID = process.env.AI_CATEGORY_ID || '1506060632531927172';
 const TICKET_PANEL_CHANNEL_ID = process.env.TICKET_PANEL_CHANNEL_ID || '1505164021186433075';
 const LEVEL_SAVE_DELAY_MS = 5000;
 const MAX_FAKE_REPLIES = 5;
@@ -44,10 +41,6 @@ if (fs.existsSync(commandsPath)) {
 
 const onReady = async () => {
   console.log(`Logged in as ${client.user.tag}`);
-
-  for (const guild of client.guilds.cache.values()) {
-    await levelsUtil.ensureLevelRoles(guild);
-  }
 
   // Register slash commands for each guild
   const { ApplicationCommandOptionType } = require('discord.js');
@@ -146,62 +139,6 @@ const onReady = async () => {
     console.error('Error deploying slash commands:', err);
   }
 
-  // Set up 10-minute game reminder interval
-  setInterval(async () => {
-    try {
-      const { EmbedBuilder } = require('discord.js');
-      const announceChannelId = process.env.DISCORD_ANNOUNCE_CHANNEL_ID;
-      const gamesChannelId = '1506009762901524661';
-
-      const targetChannelId = '1506009762901524661';
-      const channel = await client.channels.fetch(targetChannelId).catch(() => null);
-      if (channel && channel.isTextBased()) {
-        await channel.send("we have games like !trivia !guess");
-        console.log(`Sent game reminder to gaming announce channel: ${targetChannelId}`);
-        return;
-      }
-
-      if (announceChannelId && announceChannelId !== '1445302290918408283') {
-        const channel = await client.channels.fetch(announceChannelId).catch(() => null);
-        if (channel && channel.isTextBased()) {
-          await channel.send("we have games like !trivia !guess");
-          console.log(`Sent game reminder to configured announce channel: ${announceChannelId}`);
-          return;
-        }
-      }
-
-      // Fallback: If no target channel is found, send to 'general' text channel in each guild
-      for (const guild of client.guilds.cache.values()) {
-        const channel = guild.channels.cache.find(
-          c => c.isTextBased() && c.id !== '1445302290918408283' && (c.name.toLowerCase() === 'general' || c.name.toLowerCase() === 'chat' || c.name.toLowerCase() === 'lounge')
-        );
-        if (channel) {
-          await channel.send("we have games like !trivia !guess").catch(() => null);
-          console.log(`Sent game reminder to fallback channel: #${channel.name} in guild: ${guild.name}`);
-        }
-      }
-    } catch (err) {
-      console.error('Error sending game reminder:', err);
-    }
-  }, 10 * 60 * 1000); // Every 10 minutes
-
-  // Set up 24-hour games channel clear interval
-  setInterval(async () => {
-    try {
-      const gamesChannelId = '1506009762901524661';
-      const channel = await client.channels.fetch(gamesChannelId).catch(() => null);
-      if (channel && channel.isTextBased()) {
-        console.log(`Starting daily clear of games channel: ${gamesChannelId}`);
-        let deleted;
-        do {
-          deleted = await channel.bulkDelete(100, true).catch(() => null);
-        } while (deleted && deleted.size > 0);
-        console.log(`Successfully cleared games channel: ${gamesChannelId}`);
-      }
-    } catch (err) {
-      console.error('Error during daily games channel clearing:', err);
-    }
-  }, 24 * 60 * 60 * 1000); // Every 24 hours
 };
 
 client.once('ready', onReady);
@@ -346,7 +283,6 @@ process.once('SIGINT', () => {
 });
 
 process.once('SIGTERM', () => {
-  levelsUtil.saveLevelsSync();
   process.exit(0);
 });
 
@@ -361,91 +297,6 @@ try {
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   console.log(`[MESSAGE] Received from ${message.author.tag} (${message.author.id}) in ${message.guild?.name || 'DM'}: "${message.content}"`);
-
-  // AI Reply Handler: If a user replies to any of Psybot's messages, respond using Psybot AI!
-  if (message.reference && message.reference.messageId && !message.content.startsWith(prefix)) {
-    try {
-      const referencedMessage = await message.channel.messages.fetch(message.reference.messageId);
-      if (referencedMessage.author.id === client.user.id) {
-        const askCommand = client.commands.get('ask');
-        if (askCommand) {
-          const promptArgs = message.content.trim().split(/\s+/);
-          await askCommand.execute(message, promptArgs);
-          return;
-        }
-      }
-    } catch (err) {
-      // Ignore fetch errors (e.g. if the message was deleted)
-    }
-  }
-
-  // Private AI Channel handler
-  if (message.channel.name && message.channel.name.startsWith('ai-chat-')) {
-    const aiChannelsPath = path.join(__dirname, 'ai_channels.json');
-    const aiChannels = readJsonFile(aiChannelsPath, {});
-    const channelInfo = aiChannels[message.channel.id];
-
-    if (message.content.trim().toLowerCase() === '!end') {
-      if (channelInfo) {
-        channelInfo.endRequested = true;
-        channelInfo.endTime = Date.now();
-        writeJsonFile(aiChannelsPath, aiChannels);
-
-        const { EmbedBuilder } = require('discord.js');
-        const endEmbed = new EmbedBuilder()
-          .setTitle('🛑 Session End Scheduled')
-          .setDescription('This private AI chat session has been scheduled to close.\nThe channel will be **automatically deleted in 10 minutes**.')
-          .setColor('#ff3333')
-          .setTimestamp();
-        await message.reply({ embeds: [endEmbed] }).catch(() => {});
-      }
-      return;
-    }
-
-    if (channelInfo) {
-      if (channelInfo.endRequested) {
-        await message.reply('⚠️ *This AI chat session has ended and is scheduled for deletion. No further messages are accepted.*').catch(() => {});
-        return;
-      }
-
-      channelInfo.lastActivity = Date.now();
-      channelInfo.warned = false;
-      writeJsonFile(aiChannelsPath, aiChannels);
-    }
-
-    if (!message.content.startsWith(prefix)) {
-      const askCommand = client.commands.get('ask');
-      if (askCommand) {
-        const promptArgs = message.content.trim().split(/\s+/);
-        try {
-          await askCommand.execute(message, promptArgs);
-        } catch (err) {
-          console.error('Error executing AI response in private channel:', err);
-        }
-        return;
-      }
-    }
-  }
-
-  // Filter messages in the games channel (1506009762901524661)
-  if (message.channel.id === '1506009762901524661') {
-    const trimmed = message.content.trim();
-    const lower = trimmed.toLowerCase();
-    
-    const isAllowedCommand = lower.startsWith('!trivia') || lower.startsWith('!guess');
-    const isNumber = /^\d+$/.test(trimmed);
-    const isCancelKeyword = lower === 'cancel' || lower === 'stop' || lower === 'quit';
-
-    if (!isAllowedCommand && !isNumber && !isCancelKeyword) {
-      try {
-        await message.delete();
-        console.log(`Deleted non-game message from ${message.author.tag} in games channel: "${message.content}"`);
-      } catch (err) {
-        console.error('Failed to delete non-game message:', err);
-      }
-      return;
-    }
-  }
 
   // Custom random letter generator for channel 1445395976495042641
   if (message.channel.id === '1445395976495042641') {
@@ -472,10 +323,9 @@ client.on('messageCreate', async message => {
     }
   }
 
-  // Log all messages to the specified channel, excluding the logs channel and the games channel (1506009762901524661)
+  // Log all messages to the specified channel, excluding the logs channel
   const logChannelId = '1505905409003884634';
-  const gamesChannelId = '1506009762901524661';
-  if (message.guild && message.channel.id !== logChannelId && message.channel.id !== gamesChannelId) {
+  if (message.guild && message.channel.id !== logChannelId) {
     try {
       const logChannel = client.channels.cache.get(logChannelId);
       if (logChannel) {
@@ -522,41 +372,6 @@ client.on('messageCreate', async message => {
 
   if (/\b(yt|youtube)\b/.test(earlyNormalizedMessage)) {
     return message.channel.send('Search psybotlive 🤫');
-  }
-
-  // Level System - Give XP for messages
-  if (message.guild) {
-    try {
-      const userId = message.author.id;
-      const xpGain = Math.floor(Math.random() * 15) + 5; // 5-20 XP per message
-
-      const result = levelsUtil.addXP(userId, xpGain);
-
-      if (result && result.leveledUp) {
-        const levelChannel = client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
-        for (const lvl of result.levelsGained) {
-          if (levelChannel) {
-            const { EmbedBuilder } = require('discord.js');
-            const embed = new EmbedBuilder()
-              .setTitle('🎉 Level Up!')
-              .setDescription(`${message.author} has reached Level ${lvl}!`)
-              .addFields(
-                { name: '✅ XP', value: `${result.currentXP} / ${lvl * 600 + 600}` },
-                { name: '📊 Level', value: `${lvl}`, inline: true }
-              )
-              .setColor('#5865F2')
-              .setThumbnail(message.author.displayAvatarURL())
-              .setFooter({ text: 'Keep grinding to reach the top!' });
-
-            await levelChannel.send({ embeds: [embed] });
-          }
-          await levelsUtil.giveLevelRole(message.member, lvl);
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
-      }
-    } catch (err) {
-      console.error('Level system error:', err);
-    }
   }
 
   if (false) {
@@ -1579,37 +1394,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       const userId = newState.member.user.id;
       const voiceData = tempVCs.get(`voice_${userId}`);
 
-      // Add XP for voice time
+      // Voice data removal
       if (voiceData && voiceData.joinTime) {
-        const timeSpent = Math.floor((Date.now() - voiceData.joinTime) / 60000); // in minutes
-        if (timeSpent > 0) {
-          const xpGain = timeSpent * 15; // 15 XP per minute
-          const result = levelsUtil.addXP(userId, xpGain);
-
-          if (result && result.leveledUp) {
-            const levelChannel = client.channels.cache.get(process.env.LEVEL_CHANNEL_ID);
-            for (const lvl of result.levelsGained) {
-              if (levelChannel) {
-                const { EmbedBuilder } = require('discord.js');
-                const user = newState.member.user;
-                const embed = new EmbedBuilder()
-                  .setTitle('🎉 Level Up!')
-                  .setDescription(`${user} has reached Level ${lvl}!`)
-                  .addFields(
-                    { name: '✅ XP', value: `${result.currentXP} / ${lvl * 600 + 600}` },
-                    { name: '📊 Level', value: `${lvl}`, inline: true }
-                  )
-                  .setColor('#5865F2')
-                  .setThumbnail(user.displayAvatarURL())
-                  .setFooter({ text: 'Keep grinding to reach the top!' });
-
-                await levelChannel.send({ embeds: [embed] });
-              }
-              await levelsUtil.giveLevelRole(newState.member, lvl);
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
-          }
-        }
         tempVCs.delete(`voice_${userId}`);
       }
 
