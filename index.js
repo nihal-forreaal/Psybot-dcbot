@@ -282,28 +282,38 @@ const updateServerStats = async () => {
     let subs = 'N/A', views = 'N/A';
     if (subsChannel || viewsChannel) {
       try {
-        const ytChannelInfo = require('yt-channel-info');
-        const ytData = await ytChannelInfo.getChannelInfo({ channelHandle: '@psybotlive' }).catch(() => null);
-        
-        if (ytData) {
-          if (ytData.subscriberCount) {
+        const apiKey = process.env.YOUTUBE_API_KEY;
+        if (apiKey) {
+          // Use 100% reliable Official YouTube API
+          const axios = require('axios');
+          const url = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=UCqHUm56Fy2FGS1CdNtqa5aA&key=${apiKey}`;
+          const { data } = await axios.get(url);
+          
+          if (data && data.items && data.items.length > 0) {
+            const stats = data.items[0].statistics;
+            if (stats.subscriberCount) subs = Number(stats.subscriberCount).toLocaleString();
+            if (stats.viewCount) views = Number(stats.viewCount).toLocaleString();
+          }
+        } else {
+          // Fallback to yt-channel-info
+          const ytChannelInfo = require('yt-channel-info');
+          const ytData = await ytChannelInfo.getChannelInfo({ channelHandle: '@psybotlive' }).catch(() => null);
+          if (ytData && ytData.subscriberCount) {
             subs = ytData.subscriberCount.replace(/ subscribers?/i, '').trim();
           }
-        }
-        
-        // yt-channel-info doesn't always return views for handles. Let's do a fast axios fallback for views.
-        const axios = require('axios');
-        const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
-          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-        }).catch(() => ({ data: '' }));
-        
-        // This regex looks for the view count directly in the raw HTML string
-        const viewMatch = data.match(/([0-9,]+)\s*views/i) || data.match(/"viewCountText":{"simpleText":"([^"]+)"/i);
-        if (viewMatch && viewMatch[1]) {
-          views = viewMatch[1].replace(/ views?/i, '').trim();
+          
+          const axios = require('axios');
+          const { data } = await axios.get('https://www.youtube.com/@psybotlive', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+          }).catch(() => ({ data: '' }));
+          
+          const viewMatch = data.match(/([0-9,]+)\s*views/i) || data.match(/"viewCountText":{"simpleText":"([^"]+)"/i);
+          if (viewMatch && viewMatch[1]) {
+            views = viewMatch[1].replace(/ views?/i, '').trim();
+          }
         }
       } catch (err) {
-        console.error('Failed to scrape YT stats:', err.message);
+        console.error('Failed to fetch YT stats:', err.message);
       }
       
       if (subsChannel) await subsChannel.setName(`Subscribers: ${subs}`).catch(() => {});
