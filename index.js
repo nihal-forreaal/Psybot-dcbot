@@ -191,10 +191,53 @@ const onReady = async () => {
     console.log('[✅ Log Setup] Log channels already configured, skipping auto-setup.');
   }
 
+  // ---- Server Stats Auto-Setup ----
+  const statsConfigPath = path.join(__dirname, 'statsConfig.json');
+  let needsSetup = !fs.existsSync(statsConfigPath);
+  if (!needsSetup) {
+    const cfg = JSON.parse(fs.readFileSync(statsConfigPath, 'utf8'));
+    if (!cfg.membersId) {
+      console.log('[📊 Stats] Old dashboard layout detected. Deleting old config to rebuild new layout...');
+      fs.unlinkSync(statsConfigPath);
+      needsSetup = true;
+    }
+  }
+
+  if (needsSetup) {
+    console.log('[📊 Stats] Stats dashboard not found. Auto-setting up...');
+    const guild = client.guilds.cache.first();
+    if (guild) {
+      try {
+        const { ChannelType, PermissionFlagsBits } = require('discord.js');
+        const adminPerms = [
+          { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] },
+          { id: guild.members.me.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels] }
+        ];
+
+        const serverCat = await guild.channels.create({ name: '╔ 📊 𝐒𝐄𝐑𝐕𝐄𝐑 𝐒𝐓𝐀𝐓𝐔𝐒 📊 ╗', type: ChannelType.GuildCategory });
+        const membersChannel = await guild.channels.create({ name: '👤 │ MEMBERS: 0', type: ChannelType.GuildVoice, parent: serverCat.id, permissionOverwrites: adminPerms });
+        const botsChannel = await guild.channels.create({ name: '🤖 │ BOTS: 0', type: ChannelType.GuildVoice, parent: serverCat.id, permissionOverwrites: adminPerms });
+        const ytCat = await guild.channels.create({ name: 'Psybot • YouTube Stats ˅', type: ChannelType.GuildCategory });
+        const subsChannel = await guild.channels.create({ name: 'Subs: N/A', type: ChannelType.GuildVoice, parent: ytCat.id, permissionOverwrites: adminPerms });
+        const viewsChannel = await guild.channels.create({ name: 'Views: N/A', type: ChannelType.GuildVoice, parent: ytCat.id, permissionOverwrites: adminPerms });
+        const videosChannel = await guild.channels.create({ name: 'Videos: N/A', type: ChannelType.GuildVoice, parent: ytCat.id, permissionOverwrites: adminPerms });
+
+        fs.writeFileSync(statsConfigPath, JSON.stringify({
+          serverCatId: serverCat.id, ytCatId: ytCat.id,
+          membersId: membersChannel.id, botsId: botsChannel.id,
+          subsId: subsChannel.id, viewsId: viewsChannel.id, videosId: videosChannel.id
+        }, null, 2));
+        console.log('[✅ Stats] Stats dashboard auto-setup complete!');
+      } catch (err) {
+        console.error('Failed auto-setup of stats dashboard:', err.message);
+      }
+    }
+  }
+
   // Run stats update every 10 minutes (600,000 ms)
   setInterval(updateServerStats, 600000);
-  // Also run it 10 seconds after boot
-  setTimeout(updateServerStats, 10000);
+  // Also run it 5 seconds after boot to sync immediately
+  setTimeout(updateServerStats, 5000);
 
 };
 
