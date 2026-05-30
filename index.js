@@ -238,7 +238,7 @@ client.once('ready', async () => {
         .setURL('https://www.innersloth.com/games/among-us/')
     );
 
-    await dealChannel.send({ content: '@everyone', embeds: [embed], components: [row] });
+    await dealChannel.send({ embeds: [embed], components: [row] });
     fs.writeFileSync(dealFlagPath, 'sent'); // Mark as sent so it never fires again
     console.log('[\u2705 Deal] Among Us deal announcement sent!');
   } catch (err) {
