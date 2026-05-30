@@ -1,4 +1,4 @@
-const { WebhookClient } = require('discord.js');
+﻿const { WebhookClient } = require('discord.js');
 
 module.exports = {
   name: 'startlink',
@@ -124,7 +124,7 @@ module.exports = {
     const displayTarget = isWebhook
       ? 'provided Webhook URL'
       : (targetChannel.bot !== undefined ? `<@${target}>` : `<#${target}>`);
-    await message.reply(`✅ Started sending randomized links to ${displayTarget} every ${interval / 1000} second(s) (randomizing last ${charCount} characters). Type \`!stoplink <target>\` to stop.`);
+    await message.reply(`<:tick:1510274177486028860> Started sending randomized links to ${displayTarget} every ${interval / 1000} second(s) (randomizing last ${charCount} characters). Type \`!stoplink <target>\` to stop.`);
 
     const intervalId = setInterval(async () => {
       const randomized = randomizeLinkEnd(link, charCount);

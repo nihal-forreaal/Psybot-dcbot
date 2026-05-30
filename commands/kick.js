@@ -1,4 +1,4 @@
-const targetChannelId = '1505909671918043258';
+﻿const targetChannelId = '1505909671918043258';
 
 module.exports = {
   name: 'kick',
@@ -25,6 +25,6 @@ module.exports = {
 
     const reason = args.slice(1).join(' ') || 'No reason provided';
     await targetMember.kick(reason);
-    message.reply(`✅ Successfully kicked **${targetMember.user.tag}**.`);
+    message.reply(`<:tick:1510274177486028860> Successfully kicked **${targetMember.user.tag}**.`);
   }
 };

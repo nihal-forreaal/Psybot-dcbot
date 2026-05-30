@@ -1,4 +1,4 @@
-module.exports = {
+﻿module.exports = {
   name: 'delete',
   description: 'Deletes a specified number of messages or all messages in the channel (restricted)',
   async execute(message, args) {
@@ -59,7 +59,7 @@ module.exports = {
     }
 
     // Send a temporary success response that auto-deletes after 5 seconds
-    const response = await message.channel.send(`✅ Successfully deleted **${deletedCount}** messages.`);
+    const response = await message.channel.send(`<:tick:1510274177486028860> Successfully deleted **${deletedCount}** messages.`);
     setTimeout(() => response.delete().catch(() => {}), 5000);
   }
 };

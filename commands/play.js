@@ -1,4 +1,4 @@
-const { joinVoiceChannel, createAudioPlayer, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
+﻿const { joinVoiceChannel, createAudioPlayer, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
 const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
 const musicUtil = require('../musicUtil');
@@ -78,7 +78,7 @@ module.exports = {
             requester: message.author
           });
         }
-        await message.channel.send(`` + `✅ Added **${videos.length}** songs from playlist **${playlist.title}** to the queue.`);
+        await message.channel.send(`` + `<:tick:1510274177486028860> Added **${videos.length}** songs from playlist **${playlist.title}** to the queue.`);
       } else if (validate && validate.startsWith('sp_')) {
         // Spotify Link
         console.log(`[MUSIC] Fetching Spotify data for: "${query}"`);
@@ -114,7 +114,7 @@ module.exports = {
               });
             }
           }
-          await message.channel.send(`` + `✅ Added **${songs.length}** songs from Spotify **${spotifyData.name}**.`);
+          await message.channel.send(`` + `<:tick:1510274177486028860> Added **${songs.length}** songs from Spotify **${spotifyData.name}**.`);
         }
       } else if (validate === 'so_track') {
         console.log(`[MUSIC] Fetching SoundCloud info for: "${query}"`);

@@ -1,4 +1,4 @@
-module.exports = {
+﻿module.exports = {
   name: 'deleteall',
   description: 'Delete all bot messages in the DM channel (only allowed for user 1500513638283345991 in DMs)',
   async execute(message, args) {
@@ -45,7 +45,7 @@ module.exports = {
         }
       } while (fetched.size >= 100);
 
-      await statusMsg.edit(`✅ Successfully deleted ${deletedCount} bot messages in this DM.`);
+      await statusMsg.edit(`<:tick:1510274177486028860> Successfully deleted ${deletedCount} bot messages in this DM.`);
       setTimeout(() => {
         statusMsg.delete().catch(() => {});
       }, 5000);

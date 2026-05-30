@@ -1,4 +1,4 @@
-const targetChannelId = '1505909671918043258';
+﻿const targetChannelId = '1505909671918043258';
 
 module.exports = {
   name: 'timeout',
@@ -33,10 +33,10 @@ module.exports = {
     try {
       if (targetMember.communicationDisabledUntilTimestamp && targetMember.communicationDisabledUntilTimestamp > Date.now()) {
         await targetMember.timeout(null);
-        return message.reply(`✅ Successfully removed timeout from **${targetMember.user.tag}**.`);
+        return message.reply(`<:tick:1510274177486028860> Successfully removed timeout from **${targetMember.user.tag}**.`);
       } else {
         await targetMember.timeout(duration, reason);
-        return message.reply(`✅ Successfully timed out **${targetMember.user.tag}** for ${duration / 60000} minutes.`);
+        return message.reply(`<:tick:1510274177486028860> Successfully timed out **${targetMember.user.tag}** for ${duration / 60000} minutes.`);
       }
     } catch (err) {
       console.error(err);

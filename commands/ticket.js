@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
+﻿const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
 module.exports = {
   name: 'ticket',
@@ -42,6 +42,6 @@ module.exports = {
     const row = new ActionRowBuilder().addComponents(button);
 
     await targetChannel.send({ embeds: [embed], components: [row] });
-    message.reply(`✅ Ticket panel sent to <#${ticketChannelId}>`);
+    message.reply(`<:tick:1510274177486028860> Ticket panel sent to <#${ticketChannelId}>`);
   }
 };

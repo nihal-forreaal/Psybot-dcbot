@@ -1,4 +1,4 @@
-const targetChannelId = '1505909671918043258';
+﻿const targetChannelId = '1505909671918043258';
 
 module.exports = {
   name: 'defen',
@@ -26,10 +26,10 @@ module.exports = {
 
     if (voiceState.serverDeaf) {
       await voiceState.setDeaf(false);
-      return message.reply(`✅ Successfully server-undeafened **${targetMember.user.tag}**.`);
+      return message.reply(`<:tick:1510274177486028860> Successfully server-undeafened **${targetMember.user.tag}**.`);
     } else {
       await voiceState.setDeaf(true);
-      return message.reply(`✅ Successfully server-deafened **${targetMember.user.tag}**.`);
+      return message.reply(`<:tick:1510274177486028860> Successfully server-deafened **${targetMember.user.tag}**.`);
     }
   }
 };

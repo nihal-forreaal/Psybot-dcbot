@@ -1,4 +1,4 @@
-const targetChannelId = '1505909671918043258';
+﻿const targetChannelId = '1505909671918043258';
 
 module.exports = {
   name: 'mute',
@@ -26,10 +26,10 @@ module.exports = {
 
     if (voiceState.serverMute) {
       await voiceState.setMute(false);
-      return message.reply(`✅ Successfully server-unmuted **${targetMember.user.tag}**.`);
+      return message.reply(`<:tick:1510274177486028860> Successfully server-unmuted **${targetMember.user.tag}**.`);
     } else {
       await voiceState.setMute(true);
-      return message.reply(`✅ Successfully server-muted **${targetMember.user.tag}**.`);
+      return message.reply(`<:tick:1510274177486028860> Successfully server-muted **${targetMember.user.tag}**.`);
     }
   }
 };

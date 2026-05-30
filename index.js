@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const dns = require('dns');
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
@@ -426,7 +426,7 @@ client.on('interactionCreate', async interaction => {
       }
       const reason = options.getString('reason') || 'No reason provided';
       await targetMember.kick(reason);
-      return interaction.reply({ content: `✅ Successfully kicked **${targetMember.user.tag}**.` });
+      return interaction.reply({ content: `<:tick:1510274177486028860> Successfully kicked **${targetMember.user.tag}**.` });
     }
 
     if (commandName === 'mute') {
@@ -436,10 +436,10 @@ client.on('interactionCreate', async interaction => {
       }
       if (voiceState.serverMute) {
         await voiceState.setMute(false);
-        return interaction.reply({ content: `✅ Successfully server-unmuted **${targetMember.user.tag}**.` });
+        return interaction.reply({ content: `<:tick:1510274177486028860> Successfully server-unmuted **${targetMember.user.tag}**.` });
       } else {
         await voiceState.setMute(true);
-        return interaction.reply({ content: `✅ Successfully server-muted **${targetMember.user.tag}**.` });
+        return interaction.reply({ content: `<:tick:1510274177486028860> Successfully server-muted **${targetMember.user.tag}**.` });
       }
     }
 
@@ -450,10 +450,10 @@ client.on('interactionCreate', async interaction => {
       }
       if (voiceState.serverDeaf) {
         await voiceState.setDeaf(false);
-        return interaction.reply({ content: `✅ Successfully server-undeafened **${targetMember.user.tag}**.` });
+        return interaction.reply({ content: `<:tick:1510274177486028860> Successfully server-undeafened **${targetMember.user.tag}**.` });
       } else {
         await voiceState.setDeaf(true);
-        return interaction.reply({ content: `✅ Successfully server-deafened **${targetMember.user.tag}**.` });
+        return interaction.reply({ content: `<:tick:1510274177486028860> Successfully server-deafened **${targetMember.user.tag}**.` });
       }
     }
 
@@ -465,10 +465,10 @@ client.on('interactionCreate', async interaction => {
       try {
         if (targetMember.communicationDisabledUntilTimestamp && targetMember.communicationDisabledUntilTimestamp > Date.now()) {
           await targetMember.timeout(null);
-          return interaction.reply({ content: `✅ Successfully removed timeout from **${targetMember.user.tag}**.` });
+          return interaction.reply({ content: `<:tick:1510274177486028860> Successfully removed timeout from **${targetMember.user.tag}**.` });
         } else {
           await targetMember.timeout(duration, reason);
-          return interaction.reply({ content: `✅ Successfully timed out **${targetMember.user.tag}** for ${minutes} minutes.` });
+          return interaction.reply({ content: `<:tick:1510274177486028860> Successfully timed out **${targetMember.user.tag}** for ${minutes} minutes.` });
         }
       } catch (err) {
         console.error(err);
@@ -547,7 +547,7 @@ client.on('interactionCreate', async interaction => {
         }).catch(() => {});
       }
 
-      await interaction.reply({ content: `✅ Ticket transferred to ${targetMember}.`, ephemeral: true });
+      await interaction.reply({ content: `<:tick:1510274177486028860> Ticket transferred to ${targetMember}.`, ephemeral: true });
       await interaction.channel.send({ embeds: [buildTicketEmbed(ticketData.userId, ticketData.ticketId, ticketData.claimedBy, `<@&${modRoleId}>${adminRoleId ? ` <@&${adminRoleId}>` : ''}`)], components: [buildTicketButtons(ticketData.claimedBy)] });
     }
 
@@ -582,7 +582,7 @@ client.on('interactionCreate', async interaction => {
         ReadMessageHistory: true,
       });
 
-      return interaction.reply({ content: `✅ ${targetMember} was added to the ticket.`, ephemeral: true });
+      return interaction.reply({ content: `<:tick:1510274177486028860> ${targetMember} was added to the ticket.`, ephemeral: true });
     }
 
     if (interaction.customId.startsWith('vc_edit_modal_')) {
@@ -598,7 +598,7 @@ client.on('interactionCreate', async interaction => {
 
       const newName = interaction.fields.getTextInputValue('vc_new_name');
       await channel.setName(`🎙️ ${newName}`);
-      return interaction.reply({ content: `✅ Renamed your voice channel to **${newName}**!`, ephemeral: true });
+      return interaction.reply({ content: `<:tick:1510274177486028860> Renamed your voice channel to **${newName}**!`, ephemeral: true });
     }
 
     if (interaction.customId.startsWith('vc_access_modal_')) {
@@ -627,7 +627,7 @@ client.on('interactionCreate', async interaction => {
         Connect: true,
         ViewChannel: true
       });
-      return interaction.reply({ content: `✅ Granted voice channel access to ${targetMember.user}.`, ephemeral: true });
+      return interaction.reply({ content: `<:tick:1510274177486028860> Granted voice channel access to ${targetMember.user}.`, ephemeral: true });
     }
 
     if (interaction.customId.startsWith('vc_block_modal_')) {
@@ -676,7 +676,7 @@ client.on('interactionCreate', async interaction => {
         return interaction.reply({ content: `❌ You have removed the <@&${roleId}> role.`, ephemeral: true });
       } else {
         await member.roles.add(roleId);
-        return interaction.reply({ content: `✅ You have been granted the <@&${roleId}> role!`, ephemeral: true });
+        return interaction.reply({ content: `<:tick:1510274177486028860> You have been granted the <@&${roleId}> role!`, ephemeral: true });
       }
     } catch (err) {
       console.error('Error assigning reaction role:', err);
@@ -748,7 +748,7 @@ client.on('interactionCreate', async interaction => {
       });
 
       await interaction.editReply({
-        content: `✅ Ticket created! <#${ticketChannel.id}>`,
+        content: `<:tick:1510274177486028860> Ticket created! <#${ticketChannel.id}>`,
       });
     } catch (error) {
       console.error('Error creating ticket:', error);
@@ -826,7 +826,7 @@ client.on('interactionCreate', async interaction => {
       await aiChannel.send({ embeds: [welcomeEmbed] });
 
       await interaction.editReply({
-        content: `✅ Your private AI chat channel has been created! <#${aiChannel.id}>`,
+        content: `<:tick:1510274177486028860> Your private AI chat channel has been created! <#${aiChannel.id}>`,
       });
     } catch (error) {
       console.error('Error creating private AI channel:', error);
@@ -955,7 +955,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.channel.send({ embeds: [embed], components: [buildTicketButtons(ticketEntry.claimedBy)] });
 
     return interaction.reply({
-      content: `✅ Ticket claimed by ${interaction.user}. Only you and the ticket owner can send messages now.`,
+      content: `<:tick:1510274177486028860> Ticket claimed by ${interaction.user}. Only you and the ticket owner can send messages now.`,
       ephemeral: true,
     });
   }
@@ -985,7 +985,7 @@ client.on('interactionCreate', async interaction => {
       removeTicketByChannel(interaction.channel.id);
 
       await interaction.editReply({
-        content: '✅ Ticket closed. Channel will be deleted in 5 seconds...',
+        content: '<:tick:1510274177486028860> Ticket closed. Channel will be deleted in 5 seconds...',
       });
 
       setTimeout(() => {
@@ -1377,7 +1377,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           await tempVC.send({ content: `${newState.member}`, embeds: [embed], components: [row1, row2] });
         }
 
-        console.log(`✅ Created temp VC for ${user.username}: ${tempVC.name}`);
+        console.log(`<:tick:1510274177486028860> Created temp VC for ${user.username}: ${tempVC.name}`);
       } catch (error) {
         console.error('Error creating temp VC:', error);
       }

@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+﻿const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -74,7 +74,7 @@ module.exports = {
       }
 
       await channel.send({ embeds: [embed], components });
-      await message.reply(`✅ Reaction roles panel sent to <#${RR_CHANNEL_ID}>!`);
+      await message.reply(`<:tick:1510274177486028860> Reaction roles panel sent to <#${RR_CHANNEL_ID}>!`);
     } catch (error) {
       console.error('Error sending rrpanel:', error);
       await message.reply('❌ An error occurred while sending the panel.');

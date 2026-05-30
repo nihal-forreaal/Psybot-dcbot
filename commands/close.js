@@ -1,4 +1,4 @@
-module.exports = {
+﻿module.exports = {
   name: 'close',
   description: 'Close a ticket (admin only)',
   async execute(message) {
@@ -23,7 +23,7 @@ module.exports = {
       fs.writeFileSync(ticketsPath, JSON.stringify(ticketsFile, null, 2));
     }
 
-    message.reply('✅ Ticket closed and channel will be deleted in 5 seconds...');
+    message.reply('<:tick:1510274177486028860> Ticket closed and channel will be deleted in 5 seconds...');
     setTimeout(() => message.channel.delete().catch(() => {}), 5000);
   }
 };
