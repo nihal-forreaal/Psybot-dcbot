@@ -79,10 +79,8 @@ Below is the directory of prefix commands (`!`) loaded dynamically from the `com
 | `!vcpanel` | Voice | Show VC management panel for your dynamic voice channel. | VC Creator |
 | `!ticket` | Tickets | Send the ticket system button panel. | Admin Role |
 | `!close` | Tickets | Close the current ticket channel. | Staff / Admin |
-| `!kick <@user> [reason]` | Moderation | Kick a member from the server. | Kick Members / Admin |
 | `!mute <@user>` | Moderation | Server mute/unmute a user in voice. | Mute Members / Admin |
 | `!deafen <@user>` | Moderation | Server deafen/undeafen a user in voice. | Deafen Members / Admin |
-| `!timeout <@user> [mins] [reason]` | Moderation | Mute/timeout a member. | Moderate Members / Admin |
 | `!ping` | Utility | Replies with bot latency. | Everyone |
 | `!say <text>` | Utility | Bot repeats your message. | Everyone |
 | `!startlink <link> [chars] [int] [target]` | Utility | Broadcast randomized links at specific intervals. | Authorized IDs |
