@@ -636,6 +636,13 @@ client.on('messageCreate', async message => {
     return message.channel.send('zypher');
   }
 
+  if (earlyNormalizedMessage === '!syncstats') {
+    if (!message.member.permissions.has('Administrator')) return;
+    await message.reply('Syncing stats now...');
+    await updateServerStats();
+    return message.channel.send('✅ Stats synced successfully!');
+  }
+
   const earlyFakeMatches = earlyNormalizedMessage.match(/\bfake\b/g) || [];
   if (earlyFakeMatches.length > 0) {
     const replyCount = Math.min(earlyFakeMatches.length, MAX_FAKE_REPLIES);
