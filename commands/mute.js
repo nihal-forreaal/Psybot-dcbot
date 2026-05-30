@@ -1,4 +1,4 @@
-﻿const targetChannelId = '1505909671918043258';
+const targetChannelId = '1505909671918043258';
 
 module.exports = {
   name: 'mute',
@@ -24,12 +24,17 @@ module.exports = {
       return message.reply('❌ That user is not in a voice channel.');
     }
 
-    if (voiceState.serverMute) {
-      await voiceState.setMute(false);
-      return message.reply(`<:tick:1510274177486028860> Successfully server-unmuted **${targetMember.user.tag}**.`);
-    } else {
-      await voiceState.setMute(true);
-      return message.reply(`<:tick:1510274177486028860> Successfully server-muted **${targetMember.user.tag}**.`);
+    try {
+      if (voiceState.serverMute) {
+        await voiceState.setMute(false);
+        return message.reply(`<:tick:1510274177486028860> Successfully server-unmuted **${targetMember.user.tag}**.`);
+      } else {
+        await voiceState.setMute(true);
+        return message.reply(`<:tick:1510274177486028860> Successfully server-muted **${targetMember.user.tag}**.`);
+      }
+    } catch (err) {
+      console.error('setMute failed:', err.message);
+      return message.reply('❌ Failed to mute/unmute. Make sure I have the **Mute Members** permission.');
     }
   }
 };

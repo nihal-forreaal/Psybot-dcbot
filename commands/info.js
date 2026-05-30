@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const axios = require('axios');
 
 // Persistent state for tracking Core Engine Uptime
@@ -15,14 +16,14 @@ try {
     state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
   }
   
-  if (state.token === currentToken && typeof state.startTime === 'number') {
-    // Token did not change, preserve original start time
+  // FIX: store a hash of the token, not the token itself
+  const tokenHash = crypto.createHash('sha256').update(currentToken).digest('hex');
+  if (state.tokenHash === tokenHash && typeof state.startTime === 'number') {
     engineStartTime = state.startTime;
   } else {
-    // Token changed or state does not exist, reset start time
     engineStartTime = Date.now();
     fs.writeFileSync(statePath, JSON.stringify({
-      token: currentToken,
+      tokenHash,
       startTime: engineStartTime
     }, null, 2), 'utf8');
   }
@@ -114,7 +115,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle('👑 Psybot Resources & Control Panel')
       .setColor('#00d0ff')
-      .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+      .setThumbnail(message.author.displayAvatarURL())
       .setDescription('Authorized administrator CPU power & RAM consumption diagnostics shell.')
       .addFields(
         { name: '👤 Operator', value: `\`${message.author.tag}\` (ID: \`${message.author.id}\`)`, inline: false },

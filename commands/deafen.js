@@ -1,4 +1,4 @@
-﻿const targetChannelId = '1505909671918043258';
+const targetChannelId = '1505909671918043258';
 
 module.exports = {
   name: 'deafen',
@@ -24,12 +24,17 @@ module.exports = {
       return message.reply('❌ That user is not in a voice channel.');
     }
 
-    if (voiceState.serverDeaf) {
-      await voiceState.setDeaf(false);
-      return message.reply(`<:tick:1510274177486028860> Successfully server-undeafened **${targetMember.user.tag}**.`);
-    } else {
-      await voiceState.setDeaf(true);
-      return message.reply(`<:tick:1510274177486028860> Successfully server-deafened **${targetMember.user.tag}**.`);
+    try {
+      if (voiceState.serverDeaf) {
+        await voiceState.setDeaf(false);
+        return message.reply(`<:tick:1510274177486028860> Successfully server-undeafened **${targetMember.user.tag}**.`);
+      } else {
+        await voiceState.setDeaf(true);
+        return message.reply(`<:tick:1510274177486028860> Successfully server-deafened **${targetMember.user.tag}**.`);
+      }
+    } catch (err) {
+      console.error('setDeaf failed:', err.message);
+      return message.reply('❌ Failed to deafen/undeafen. Make sure I have the **Deafen Members** permission.');
     }
   }
 };

@@ -11,7 +11,7 @@ const prefix = process.env.PREFIX || '!';
 const ticketsPath = path.join(__dirname, 'tickets.json');
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '1505164182767800411';
 const TICKET_PANEL_CHANNEL_ID = process.env.TICKET_PANEL_CHANNEL_ID || '1505164021186433075';
-const LEVEL_SAVE_DELAY_MS = 5000;
+// LEVEL_SAVE_DELAY_MS removed (unused constant)
 const MAX_FAKE_REPLIES = 5;
 
 const client = new Client({
@@ -171,8 +171,7 @@ client.on('guildMemberAdd', async member => {
       components: [new ActionRowBuilder().addComponents(channelButton)],
     };
 
-    await member.send(welcomeMessage);
-    await member.send(welcomeMessage);
+    await member.send(welcomeMessage); // BUG FIX: removed duplicate send
   } catch (err) {
     console.error(`Could not DM new member ${member.user.tag}:`, err.message);
   }
@@ -387,10 +386,7 @@ client.on('messageCreate', async message => {
     return message.channel.send('Search psybotlive 🤫');
   }
 
-  if (false) {
-
-    return message.channel.send('Search psybotlive 🤫');
-  }
+  // Dead code block removed
 
   // Command handler
   if (!message.content.startsWith(prefix)) return;
@@ -842,7 +838,7 @@ client.on('interactionCreate', async interaction => {
       const aiChannel = await guild.channels.create({
         name: channelName,
         type: ChannelType.GuildText,
-        parent: AI_CATEGORY_ID,
+        parent: process.env.AI_CATEGORY_ID || TICKET_CATEGORY_ID, // BUG FIX: AI_CATEGORY_ID was undefined
         topic: `Private AI Chat for ${interaction.user.username} (${userId})`,
         permissionOverwrites: aiPermissionOverwrites,
       });
@@ -1070,10 +1066,10 @@ client.on('interactionCreate', async interaction => {
     
     if (isLocked) {
       await channel.permissionOverwrites.edit(interaction.guild.id, { Connect: null });
-      interaction.reply({ content: '🔓 Channel unlocked!', ephemeral: true });
+      await interaction.reply({ content: '🔓 Channel unlocked!', ephemeral: true });
     } else {
       await channel.permissionOverwrites.edit(interaction.guild.id, { Connect: false });
-      interaction.reply({ content: '🔒 Channel locked!', ephemeral: true });
+      await interaction.reply({ content: '🔒 Channel locked!', ephemeral: true });
     }
   }
 
@@ -1093,7 +1089,7 @@ client.on('interactionCreate', async interaction => {
       return interaction.reply({ content: '❌ No one else in this channel.', ephemeral: true });
     }
 
-    interaction.reply({
+    await interaction.reply({
       content: '👢 Select a user to kick:',
       components: [{
         type: 1,
@@ -1161,6 +1157,29 @@ client.on('interactionCreate', async interaction => {
     const firstActionRow = new ActionRowBuilder().addComponents(userInput);
     modal.addComponents(firstActionRow);
 
+    await interaction.showModal(modal);
+  }
+
+  // vc_coown_ handler — promote a user to co-owner of the VC
+  if (interaction.customId.startsWith('vc_coown_')) {
+    const userId = interaction.customId.split('_')[2];
+    if (interaction.user.id !== userId) {
+      return interaction.reply({ content: '❌ Only the VC owner can manage co-owners.', ephemeral: true });
+    }
+    const channel = interaction.member.voice.channel;
+    if (!channel) {
+      return interaction.reply({ content: '❌ You must be in a voice channel.', ephemeral: true });
+    }
+    const modal = new ModalBuilder()
+      .setCustomId(`vc_coown_modal_${userId}`)
+      .setTitle('👥 Add Co-owner');
+    const userInput = new TextInputBuilder()
+      .setCustomId('vc_coown_user')
+      .setLabel('User ID or Mention')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('e.g., @username or user ID')
+      .setRequired(true);
+    modal.addComponents(new ActionRowBuilder().addComponents(userInput));
     await interaction.showModal(modal);
   }
 
@@ -1378,10 +1397,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             {
               name: '🖤 Control Commands',
               value:
-                '▪️ `!kick @user` — Kick a user from your channel\n' +
-                '▪️ `!own2 @user` — Promote a user to co-owner\n' +
-                '▪️ `!access @user` — Grant specific access to a user\n' +
-                '▪️ `!block @user` — Block a user from joining',
+                '▪️ Use the **Lock** button to lock/unlock your channel\n' +
+                '▪️ Use the **Co-own** button to promote a user\n' +
+                '▪️ Use the **Allow Access** button to grant entry\n' +
+                '▪️ Use the **Block User** button to block someone',
               inline: false,
             }
           )
@@ -1439,7 +1458,8 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   if (oldState.channel && !newState.channel) {
     // Voice Leave Logger
     try {
-      const voiceLogChannelId = '1505907978992353280';
+      const cfgLeave = getLogConfig();
+      const voiceLogChannelId = cfgLeave.voiceLog || '1505907978992353280'; // BUG FIX: now reads from logConfig.json
       const voiceLogChannel = oldState.guild.channels.cache.get(voiceLogChannelId);
       if (voiceLogChannel) {
         const { EmbedBuilder } = require('discord.js');

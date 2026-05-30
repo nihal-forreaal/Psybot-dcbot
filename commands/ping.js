@@ -103,7 +103,7 @@ module.exports = {
         { name: '⚙️ Runtime', value: `• **Node Engine:** \`${nodeVersion}\`\n• **Library:** \`discord.js v${djsVersion}\``, inline: true },
         { name: '⏱️ Core Engine Uptime', value: uptimeString, inline: false }
       )
-      .setFooter({ text: `Access granted under Dev clearance level 1. • ${new Date().toLocaleString()}`, iconURL: message.author.displayAvatarURL({ dynamic: true }) });
+      .setFooter({ text: `Access granted under Dev clearance level 1. • ${new Date().toLocaleString()}`, iconURL: message.author.displayAvatarURL() });
 
     await sent.edit({ content: '', embeds: [embed] });
   }
