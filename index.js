@@ -835,6 +835,15 @@ client.on('interactionCreate', async interaction => {
     } else if (action === 'repeat') {
       isRepeating = !isRepeating;
       console.log(`[Lofi Stream] Repeat toggled to ${isRepeating} by button.`);
+    } else if (action === 'shuffle') {
+      if (isPlayingSoundcloud && soundcloudQueue.length > 1) {
+        console.log('[Lofi Stream] Shuffling queue by button...');
+        const startIndex = currentQueueIndex + 1;
+        for (let i = soundcloudQueue.length - 1; i > startIndex; i--) {
+          const j = startIndex + Math.floor(Math.random() * (i - startIndex + 1));
+          [soundcloudQueue[i], soundcloudQueue[j]] = [soundcloudQueue[j], soundcloudQueue[i]];
+        }
+      }
     } else if (action === 'clear') {
       console.log('[Lofi Stream] Queue cleared by button.');
       soundcloudQueue = [];
@@ -2787,7 +2796,6 @@ function getPlayerEmbedAndButtons() {
   const { AudioPlayerStatus } = require('@discordjs/voice');
 
   const embed = new EmbedBuilder();
-  const row = new ActionRowBuilder();
 
   // Check if current playing is paused
   const isPaused = audioPlayer ? (audioPlayer.state.status === AudioPlayerStatus.Paused) : false;
@@ -2859,7 +2867,15 @@ function getPlayerEmbedAndButtons() {
     .setStyle(isRepeating ? ButtonStyle.Success : ButtonStyle.Secondary)
     .setDisabled(!isPlayingSoundcloud);
 
-  // 4. Clear Queue Button
+  // 4. Shuffle Button
+  const shuffleButton = new ButtonBuilder()
+    .setCustomId('lofi_shuffle')
+    .setLabel('Shuffle')
+    .setEmoji('🔀')
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(!isPlayingSoundcloud || soundcloudQueue.length <= 1);
+
+  // 5. Clear Queue Button
   const clearButton = new ButtonBuilder()
     .setCustomId('lofi_clear')
     .setLabel('Clear Queue')
@@ -2867,7 +2883,7 @@ function getPlayerEmbedAndButtons() {
     .setStyle(ButtonStyle.Danger)
     .setDisabled(soundcloudQueue.length === 0);
 
-  // 5. Stop Button
+  // 6. Stop Button
   const stopButton = new ButtonBuilder()
     .setCustomId('lofi_stop')
     .setLabel('Stop')
@@ -2875,9 +2891,10 @@ function getPlayerEmbedAndButtons() {
     .setStyle(ButtonStyle.Danger)
     .setDisabled(!isPlayingSoundcloud);
 
-  row.addComponents(pauseButton, skipButton, repeatButton, clearButton, stopButton);
+  const row1 = new ActionRowBuilder().addComponents(pauseButton, skipButton, repeatButton, shuffleButton);
+  const row2 = new ActionRowBuilder().addComponents(clearButton, stopButton);
 
-  return { embeds: [embed], components: [row] };
+  return { embeds: [embed], components: [row1, row2] };
 }
 
 async function startLofiStream() {
