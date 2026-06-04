@@ -1,4 +1,16 @@
 require('dotenv').config();
+
+// Set FFMPEG_PATH to the static binary to ensure @discordjs/voice can decode streams on cloud containers
+try {
+  const ffmpeg = require('ffmpeg-static');
+  if (ffmpeg) {
+    process.env.FFMPEG_PATH = ffmpeg;
+    console.log('[Lofi Stream] Configured FFMPEG_PATH:', ffmpeg);
+  }
+} catch (err) {
+  console.error('[Lofi Stream] Could not auto-detect ffmpeg-static:', err.message);
+}
+
 const dns = require('dns');
 if (dns.setDefaultResultOrder) {
   dns.setDefaultResultOrder('ipv4first');
