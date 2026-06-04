@@ -13,6 +13,7 @@ const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '150516418276780041
 const TICKET_PANEL_CHANNEL_ID = process.env.TICKET_PANEL_CHANNEL_ID || '1505164021186433075';
 // LEVEL_SAVE_DELAY_MS removed (unused constant)
 const MAX_FAKE_REPLIES = 5;
+const balanceUtil = require('./balanceUtil');
 
 const client = new Client({
   intents: [
@@ -131,6 +132,71 @@ const onReady = async () => {
       name: 'setup-stats',
       description: 'Creates live server stats dashboard (Admins only).',
       defaultMemberPermissions: '8'
+    },
+    {
+      name: 'gamble',
+      description: 'Gamble and play minigames to earn coins!',
+      options: [
+        {
+          name: 'balance',
+          description: 'Checks your current coin balance.',
+          type: ApplicationCommandOptionType.Subcommand
+        },
+        {
+          name: 'daily',
+          description: 'Claims your daily reward of 500 coins.',
+          type: ApplicationCommandOptionType.Subcommand
+        },
+        {
+          name: 'coinflip',
+          description: 'Play a coinflip game (50% win chance).',
+          type: ApplicationCommandOptionType.Subcommand,
+          options: [
+            {
+              name: 'side',
+              description: 'Choose Heads or Tails',
+              type: ApplicationCommandOptionType.String,
+              required: true,
+              choices: [
+                { name: 'Heads', value: 'heads' },
+                { name: 'Tails', value: 'tails' }
+              ]
+            },
+            {
+              name: 'bet',
+              description: 'The amount of coins to bet',
+              type: ApplicationCommandOptionType.Integer,
+              required: true
+            }
+          ]
+        },
+        {
+          name: 'slots',
+          description: 'Play the slot machine.',
+          type: ApplicationCommandOptionType.Subcommand,
+          options: [
+            {
+              name: 'bet',
+              description: 'The amount of coins to bet',
+              type: ApplicationCommandOptionType.Integer,
+              required: true
+            }
+          ]
+        },
+        {
+          name: 'roll',
+          description: 'Roll a 100-sided die (Roll > 55 to win).',
+          type: ApplicationCommandOptionType.Subcommand,
+          options: [
+            {
+              name: 'bet',
+              description: 'The amount of coins to bet',
+              type: ApplicationCommandOptionType.Integer,
+              required: true
+            }
+          ]
+        }
+      ]
     }
   ];
 
@@ -139,10 +205,10 @@ const onReady = async () => {
     await client.application.commands.set(slashCommands);
     console.log(`Successfully registered global slash commands!`);
 
-    // ALSO register commands per-guild so they appear instantly without waiting an hour
+    // Clear guild-level commands to ensure no duplicates exist (only global ones will remain)
     for (const guild of client.guilds.cache.values()) {
-      await guild.commands.set(slashCommands);
-      console.log(`Registered guild-specific commands for: ${guild.name}`);
+      await guild.commands.set([]);
+      console.log(`Cleared guild-specific commands for: ${guild.name}`);
     }
   } catch (err) {
     console.error('Error deploying slash commands:', err);
@@ -755,6 +821,150 @@ client.on('interactionCreate', async interaction => {
         return interaction.editReply({ content: '❌ Failed to create stats dashboard.' });
       }
     }
+
+    if (commandName === 'gamble') {
+      if (interaction.channelId !== '1512008740361076776') {
+        return interaction.reply({ 
+          content: '❌ The gamble commands can only be used in the dedicated games channel <#1512008740361076776>.', 
+          ephemeral: true 
+        });
+      }
+
+      const subcommand = options.getSubcommand();
+      const userId = interaction.user.id;
+
+      if (subcommand === 'balance') {
+        const bal = balanceUtil.getBalance(userId);
+        const { EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setTitle('🪙 Coin Balance')
+          .setDescription(`Your current wallet balance is **${bal}** coins.`)
+          .setColor('#ffd700')
+          .setTimestamp();
+        return interaction.reply({ embeds: [embed] });
+      }
+
+      if (subcommand === 'daily') {
+        const result = balanceUtil.claimDaily(userId);
+        const { EmbedBuilder } = require('discord.js');
+        if (result.success) {
+          const embed = new EmbedBuilder()
+            .setTitle('🎁 Daily Reward Claimed')
+            .setDescription(`You have claimed **500** daily coins!\nYour new balance is **${result.newBalance}** coins.`)
+            .setColor('#2ecc71')
+            .setTimestamp();
+          return interaction.reply({ embeds: [embed] });
+        } else {
+          const totalSecs = Math.floor(result.timeLeft / 1000);
+          const hours = Math.floor(totalSecs / 3600);
+          const minutes = Math.floor((totalSecs % 3600) / 60);
+          const seconds = totalSecs % 60;
+          return interaction.reply({ 
+            content: `❌ You have already claimed your daily coins.\nCooldown remaining: **${hours}h ${minutes}m ${seconds}s**`, 
+            ephemeral: true 
+          });
+        }
+      }
+
+      const bet = options.getInteger('bet');
+      if (bet <= 0) {
+        return interaction.reply({ content: '❌ The bet amount must be a positive number!', ephemeral: true });
+      }
+
+      const userBalance = balanceUtil.getBalance(userId);
+      if (userBalance < bet) {
+        return interaction.reply({ 
+          content: `❌ You do not have enough coins!\nYour balance is **${userBalance}** coins, but you bet **${bet}**.`, 
+          ephemeral: true 
+        });
+      }
+
+      if (subcommand === 'coinflip') {
+        const side = options.getString('side');
+        const roll = Math.random() < 0.5 ? 'heads' : 'tails';
+        const win = side === roll;
+
+        const { EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder().setTitle('🪙 Coinflip Result');
+
+        if (win) {
+          balanceUtil.addBalance(userId, bet);
+          const newBal = balanceUtil.getBalance(userId);
+          embed.setDescription(`The coin landed on **${roll.toUpperCase()}**!\n🎉 **You won ${bet} coins!**\nNew balance: **${newBal}** coins.`)
+               .setColor('#2ecc71');
+        } else {
+          balanceUtil.addBalance(userId, -bet);
+          const newBal = balanceUtil.getBalance(userId);
+          embed.setDescription(`The coin landed on **${roll.toUpperCase()}**.\n😢 **You lost ${bet} coins.**\nNew balance: **${newBal}** coins.`)
+               .setColor('#ff3333');
+        }
+        return interaction.reply({ embeds: [embed] });
+      }
+
+      if (subcommand === 'slots') {
+        const emojis = ['🍒', '🍋', '🍇', '💎', '🔔'];
+        const reel1 = emojis[Math.floor(Math.random() * emojis.length)];
+        const reel2 = emojis[Math.floor(Math.random() * emojis.length)];
+        const reel3 = emojis[Math.floor(Math.random() * emojis.length)];
+
+        let multiplier = 0;
+        let win = false;
+
+        if (reel1 === reel2 && reel2 === reel3) {
+          win = true;
+          if (reel1 === '💎') multiplier = 5;
+          else if (reel1 === '🔔') multiplier = 3;
+          else multiplier = 2;
+        } else if (reel1 === reel2 || reel2 === reel3 || reel1 === reel3) {
+          win = true;
+          multiplier = 1.5;
+        }
+
+        const { EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setTitle('🎰 Slot Machine')
+          .setDescription(`**[ ${reel1} | ${reel2} | ${reel3} ]**\n\n`);
+
+        if (win) {
+          const winAmount = Math.floor(bet * multiplier);
+          const profit = winAmount - bet;
+          balanceUtil.addBalance(userId, profit);
+          const newBal = balanceUtil.getBalance(userId);
+          embed.setDescription(embed.data.description + `🎉 **WIN!** You matched items!\n**Payout:** ${winAmount} coins (${multiplier}x bet)\nNew balance: **${newBal}** coins.`)
+               .setColor('#2ecc71');
+        } else {
+          balanceUtil.addBalance(userId, -bet);
+          const newBal = balanceUtil.getBalance(userId);
+          embed.setDescription(embed.data.description + `😢 **No match.** You lost **${bet}** coins.\nNew balance: **${newBal}** coins.`)
+               .setColor('#ff3333');
+        }
+        return interaction.reply({ embeds: [embed] });
+      }
+
+      if (subcommand === 'roll') {
+        const diceRoll = Math.floor(Math.random() * 100) + 1;
+        const win = diceRoll > 55;
+
+        const { EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setTitle('🎲 Dice Roll Result')
+          .setDescription(`You rolled a **${diceRoll}/100** (Need > 55 to win).\n\n`);
+
+        if (win) {
+          balanceUtil.addBalance(userId, bet);
+          const newBal = balanceUtil.getBalance(userId);
+          embed.setDescription(embed.data.description + `🎉 **You won ${bet} coins!**\nNew balance: **${newBal}** coins.`)
+               .setColor('#2ecc71');
+        } else {
+          balanceUtil.addBalance(userId, -bet);
+          const newBal = balanceUtil.getBalance(userId);
+          embed.setDescription(embed.data.description + `😢 **You lost ${bet} coins.**\nNew balance: **${newBal}** coins.`)
+               .setColor('#ff3333');
+        }
+        return interaction.reply({ embeds: [embed] });
+      }
+    }
+
     const targetChannelId = '1505909671918043258';
     // Check permission (must have access to the target channel)
     const targetChannel = guild.channels.cache.get(targetChannelId);
