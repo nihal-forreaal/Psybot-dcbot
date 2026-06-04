@@ -2938,31 +2938,24 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 });
 
 // ---- Lofi VC Audio Stream Helper ----
-let voiceConnection = null;
-let audioPlayer = null;
-let currentStreamUrl = 'https://stream.laut.fm/lofi';
-let soundcloudQueue = [];
-let currentQueueIndex = 0;
-let isPlayingSoundcloud = false;
-let isRepeating = false;
-
-function getPlayerEmbedAndButtons() {
+function getPlayerEmbedAndButtons(guildId) {
   const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
   const { AudioPlayerStatus } = require('@discordjs/voice');
 
+  const state = getGuildState(guildId);
   const embed = new EmbedBuilder();
 
   // Check if current playing is paused
-  const isPaused = audioPlayer ? (audioPlayer.state.status === AudioPlayerStatus.Paused) : false;
+  const isPaused = state.audioPlayer ? (state.audioPlayer.state.status === AudioPlayerStatus.Paused) : false;
 
-  if (isPlayingSoundcloud && soundcloudQueue.length > 0 && currentQueueIndex < soundcloudQueue.length) {
-    const track = soundcloudQueue[currentQueueIndex];
+  if (state.isPlayingSoundcloud && state.soundcloudQueue.length > 0 && state.currentQueueIndex < state.soundcloudQueue.length) {
+    const track = state.soundcloudQueue[state.currentQueueIndex];
     
     // Upscale artwork URL to 500x500
     const artwork = track.artwork ? track.artwork.replace('-large.', '-t500x500.') : 'https://a-v2.sndcdn.com/assets/images/default/avatar_placeholder-800x800-449e7d95.png';
 
-    const nextTrack = (currentQueueIndex + 1 < soundcloudQueue.length) 
-      ? soundcloudQueue[currentQueueIndex + 1].title 
+    const nextTrack = (state.currentQueueIndex + 1 < state.soundcloudQueue.length) 
+      ? state.soundcloudQueue[state.currentQueueIndex + 1].title 
       : 'Back to 24/7 Lofi Radio';
 
     embed.setTitle('🎧 Lofi VC Audio Player')
@@ -2970,8 +2963,8 @@ function getPlayerEmbedAndButtons() {
       .setDescription(`**Now Playing:** [${track.title}](${track.url})
 **Artist:** \`${track.artist || 'Unknown'}\`
 **Status:** \`${isPaused ? '⏸️ Paused' : '▶️ Playing'}\`
-**Repeat Mode:** \`${isRepeating ? '🔁 On' : '❌ Off'}\`
-**Queue Position:** \`Track ${currentQueueIndex + 1} of ${soundcloudQueue.length}\`
+**Repeat Mode:** \`${state.isRepeating ? '🔁 On' : '❌ Off'}\`
+**Queue Position:** \`Track ${state.currentQueueIndex + 1} of ${state.soundcloudQueue.length}\`
 **Next Up:** \`${nextTrack}\``)
       .setThumbnail(artwork)
       .setColor('#ff5500')
@@ -2984,7 +2977,7 @@ function getPlayerEmbedAndButtons() {
       'https://stream.laut.fm/lofi-radio': 'Study (Focus Study Lofi)',
       'https://stream.laut.fm/chilledbeats': 'Coding (Electronic Chill Coding Beats)'
     };
-    const activeStation = stationNames[currentStreamUrl] || 'Chill (Relaxing Lofi Beats)';
+    const activeStation = stationNames[state.currentStreamUrl] || 'Chill (Relaxing Lofi Beats)';
 
     embed.setTitle('🎧 Lofi VC Audio Player')
       .setDescription(`**Now Playing:** 24/7 Lofi Radio 📻
@@ -3004,7 +2997,7 @@ function getPlayerEmbedAndButtons() {
     .setLabel(isPaused ? 'Resume' : 'Pause')
     .setEmoji(isPaused ? '▶️' : '⏸️')
     .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Primary)
-    .setDisabled(!isPlayingSoundcloud);
+    .setDisabled(!state.isPlayingSoundcloud);
 
   // 2. Skip Button
   const skipButton = new ButtonBuilder()
@@ -3012,15 +3005,15 @@ function getPlayerEmbedAndButtons() {
     .setLabel('Skip')
     .setEmoji('⏭️')
     .setStyle(ButtonStyle.Secondary)
-    .setDisabled(!isPlayingSoundcloud);
+    .setDisabled(!state.isPlayingSoundcloud);
 
   // 3. Repeat Button
   const repeatButton = new ButtonBuilder()
     .setCustomId('lofi_repeat')
-    .setLabel(`Repeat: ${isRepeating ? 'ON' : 'OFF'}`)
+    .setLabel(`Repeat: ${state.isRepeating ? 'ON' : 'OFF'}`)
     .setEmoji('🔁')
-    .setStyle(isRepeating ? ButtonStyle.Success : ButtonStyle.Secondary)
-    .setDisabled(!isPlayingSoundcloud);
+    .setStyle(state.isRepeating ? ButtonStyle.Success : ButtonStyle.Secondary)
+    .setDisabled(!state.isPlayingSoundcloud);
 
   // 4. Shuffle Button
   const shuffleButton = new ButtonBuilder()
@@ -3028,7 +3021,7 @@ function getPlayerEmbedAndButtons() {
     .setLabel('Shuffle')
     .setEmoji('🔀')
     .setStyle(ButtonStyle.Secondary)
-    .setDisabled(!isPlayingSoundcloud || soundcloudQueue.length <= 1);
+    .setDisabled(!state.isPlayingSoundcloud || state.soundcloudQueue.length <= 1);
 
   // 5. Clear Queue Button
   const clearButton = new ButtonBuilder()
@@ -3036,7 +3029,7 @@ function getPlayerEmbedAndButtons() {
     .setLabel('Clear Queue')
     .setEmoji('🗑️')
     .setStyle(ButtonStyle.Danger)
-    .setDisabled(soundcloudQueue.length === 0);
+    .setDisabled(state.soundcloudQueue.length === 0);
 
   // 6. Stop Button
   const stopButton = new ButtonBuilder()
@@ -3044,7 +3037,7 @@ function getPlayerEmbedAndButtons() {
     .setLabel('Stop')
     .setEmoji('⏹️')
     .setStyle(ButtonStyle.Danger)
-    .setDisabled(!isPlayingSoundcloud);
+    .setDisabled(!state.isPlayingSoundcloud);
 
   const row1 = new ActionRowBuilder().addComponents(pauseButton, skipButton, repeatButton, shuffleButton);
   const row2 = new ActionRowBuilder().addComponents(clearButton, stopButton);
@@ -3052,24 +3045,28 @@ function getPlayerEmbedAndButtons() {
   return { embeds: [embed], components: [row1, row2] };
 }
 
-async function startLofiStream() {
-  const channelId = '1512025016987029576';
+async function startLofiStream(guildId) {
+  const config = getGuildConfig(guildId);
+  const channelId = config.lofiChannelId;
+  if (!channelId) return;
+
   const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
   
   try {
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (!channel || !channel.isVoiceBased()) {
-      console.error(`[Lofi Stream] Channel ${channelId} not found or is not a voice channel.`);
+      console.error(`[Lofi Stream - ${guildId}] Channel ${channelId} not found or is not a voice channel.`);
       return;
     }
     
     const guild = channel.guild;
+    const state = getGuildState(guildId);
     
-    if (voiceConnection) {
-      try { voiceConnection.destroy(); } catch (e) {}
+    if (state.voiceConnection) {
+      try { state.voiceConnection.destroy(); } catch (e) {}
     }
     
-    voiceConnection = joinVoiceChannel({
+    state.voiceConnection = joinVoiceChannel({
       channelId: channel.id,
       guildId: guild.id,
       adapterCreator: guild.voiceAdapterCreator,
@@ -3077,89 +3074,90 @@ async function startLofiStream() {
       selfMute: false
     });
 
-    voiceConnection.on('stateChange', (oldState, newState) => {
-      console.log(`[Lofi Stream Connection] State changed from ${oldState.status} to ${newState.status}`);
+    state.voiceConnection.on('stateChange', (oldState, newState) => {
+      console.log(`[Lofi Stream Connection - ${guild.name}] State changed from ${oldState.status} to ${newState.status}`);
     });
 
-    voiceConnection.on('error', error => {
-      console.error('[Lofi Stream] Voice Connection Error:', error.message);
-      try { voiceConnection.destroy(); } catch (e) {}
-      voiceConnection = null;
-      setTimeout(startLofiStream, 5000);
+    state.voiceConnection.on('error', error => {
+      console.error(`[Lofi Stream - ${guild.name}] Voice Connection Error:`, error.message);
+      try { state.voiceConnection.destroy(); } catch (e) {}
+      state.voiceConnection = null;
+      setTimeout(() => startLofiStream(guildId), 5000);
     });
     
-    if (!audioPlayer) {
-      audioPlayer = createAudioPlayer();
+    if (!state.audioPlayer) {
+      state.audioPlayer = createAudioPlayer();
 
-      audioPlayer.on('stateChange', (oldState, newState) => {
-        console.log(`[Lofi Stream Player] State changed from ${oldState.status} to ${newState.status}`);
+      state.audioPlayer.on('stateChange', (oldState, newState) => {
+        console.log(`[Lofi Stream Player - ${guild.name}] State changed from ${oldState.status} to ${newState.status}`);
       });
       
-      audioPlayer.on(AudioPlayerStatus.Idle, () => {
-        console.log('[Lofi Stream] Audio player idle.');
-        if (isPlayingSoundcloud) {
-          if (isRepeating) {
-            console.log('[Lofi Stream] Repeat mode active. Replaying current track...');
-            playStream();
+      state.audioPlayer.on(AudioPlayerStatus.Idle, () => {
+        console.log(`[Lofi Stream - ${guild.name}] Audio player idle.`);
+        if (state.isPlayingSoundcloud) {
+          if (state.isRepeating) {
+            console.log(`[Lofi Stream - ${guild.name}] Repeat mode active. Replaying current track...`);
+            playStream(guildId);
             return;
           }
-          currentQueueIndex++;
-          if (currentQueueIndex < soundcloudQueue.length) {
-            console.log('[Lofi Stream] Playing next SoundCloud track in queue...');
-            playStream();
+          state.currentQueueIndex++;
+          if (state.currentQueueIndex < state.soundcloudQueue.length) {
+            console.log(`[Lofi Stream - ${guild.name}] Playing next SoundCloud track in queue...`);
+            playStream(guildId);
             return;
           } else {
-            console.log('[Lofi Stream] SoundCloud queue finished. Returning to 24/7 radio...');
-            isPlayingSoundcloud = false;
-            soundcloudQueue = [];
-            currentQueueIndex = 0;
+            console.log(`[Lofi Stream - ${guild.name}] SoundCloud queue finished. Returning to 24/7 radio...`);
+            state.isPlayingSoundcloud = false;
+            state.soundcloudQueue = [];
+            state.currentQueueIndex = 0;
           }
         }
-        console.log('[Lofi Stream] Re-triggering default stream play...');
-        playStream();
+        console.log(`[Lofi Stream - ${guild.name}] Re-triggering default stream play...`);
+        playStream(guildId);
       });
       
-      audioPlayer.on('error', error => {
-        console.error('[Lofi Stream] Audio Player Error:', error.message);
-        setTimeout(playStream, 5000);
+      state.audioPlayer.on('error', error => {
+        console.error(`[Lofi Stream - ${guild.name}] Audio Player Error:`, error.message);
+        setTimeout(() => playStream(guildId), 5000);
       });
     }
     
-    voiceConnection.subscribe(audioPlayer);
+    state.voiceConnection.subscribe(state.audioPlayer);
     
-    voiceConnection.on(VoiceConnectionStatus.Disconnected, () => {
-      console.warn('[Lofi Stream] Disconnected from VC. Re-establishing connection in 5 seconds...');
-      setTimeout(startLofiStream, 5000);
+    state.voiceConnection.on(VoiceConnectionStatus.Disconnected, () => {
+      console.warn(`[Lofi Stream - ${guild.name}] Disconnected from VC. Re-establishing connection in 5 seconds...`);
+      setTimeout(() => startLofiStream(guildId), 5000);
     });
     
-    playStream();
+    playStream(guildId);
   } catch (err) {
-    console.error('[Lofi Stream] Error in startLofiStream:', err);
-    setTimeout(startLofiStream, 10000);
+    console.error(`[Lofi Stream - ${guildId}] Error in startLofiStream:`, err);
+    setTimeout(() => startLofiStream(guildId), 10000);
   }
 }
 
-async function playStream() {
-  if (!audioPlayer) return;
+async function playStream(guildId) {
+  const state = getGuildState(guildId);
+  if (!state.audioPlayer) return;
   try {
     const { createAudioResource, StreamType } = require('@discordjs/voice');
 
-    if (isPlayingSoundcloud && soundcloudQueue.length > 0 && currentQueueIndex < soundcloudQueue.length) {
-      const track = soundcloudQueue[currentQueueIndex];
+    if (state.isPlayingSoundcloud && state.soundcloudQueue.length > 0 && state.currentQueueIndex < state.soundcloudQueue.length) {
+      const track = state.soundcloudQueue[state.currentQueueIndex];
       const trackUrl = track.url;
-      console.log(`[Lofi Stream] Loading SoundCloud track (${currentQueueIndex + 1}/${soundcloudQueue.length}): ${track.title} (<${trackUrl}>)`);
+      console.log(`[Lofi Stream - ${guildId}] Loading SoundCloud track (${state.currentQueueIndex + 1}/${state.soundcloudQueue.length}): ${track.title} (<${trackUrl}>)`);
       
       const scdl = require('soundcloud-downloader').default;
       const stream = await scdl.download(trackUrl).catch(err => {
-        console.error(`[Lofi Stream] Failed to download SoundCloud track stream:`, err.message);
+        console.error(`[Lofi Stream - ${guildId}] Failed to download SoundCloud track stream:`, err.message);
         return null;
       });
 
       if (!stream) {
         // Skip failed track and move to next
-        console.warn('[Lofi Stream] Skipping failed track...');
-        currentQueueIndex++;
-        setTimeout(playStream, 1000);
+        console.warn(`[Lofi Stream - ${guildId}] Skipping failed track...`);
+        state.currentQueueIndex++;
+        setTimeout(() => playStream(guildId), 1000);
         return;
       }
 
@@ -3167,14 +3165,14 @@ async function playStream() {
         inputType: StreamType.Arbitrary
       });
 
-      audioPlayer.play(resource);
-      console.log('[Lofi Stream] SoundCloud playback started.');
+      state.audioPlayer.play(resource);
+      console.log(`[Lofi Stream - ${guildId}] SoundCloud playback started.`);
     } else {
       // Default behavior: Stream Lofi Radio
-      isPlayingSoundcloud = false;
+      state.isPlayingSoundcloud = false;
       const axios = require('axios');
-      const streamUrl = currentStreamUrl;
-      console.log(`[Lofi Stream] Loading default radio stream: ${streamUrl}`);
+      const streamUrl = state.currentStreamUrl;
+      console.log(`[Lofi Stream - ${guildId}] Loading default radio stream: ${streamUrl}`);
       
       const response = await axios({
         method: 'get',
@@ -3186,12 +3184,12 @@ async function playStream() {
         inputType: StreamType.Arbitrary
       });
       
-      audioPlayer.play(resource);
-      console.log('[Lofi Stream] Default radio playback started.');
+      state.audioPlayer.play(resource);
+      console.log(`[Lofi Stream - ${guildId}] Default radio playback started.`);
     }
   } catch (err) {
-    console.error('[Lofi Stream] Failed to play stream resource:', err.message);
-    setTimeout(playStream, 5000);
+    console.error(`[Lofi Stream - ${guildId}] Failed to play stream resource:`, err.message);
+    setTimeout(() => playStream(guildId), 5000);
   }
 }
 
