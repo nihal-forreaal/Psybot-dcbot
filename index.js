@@ -827,13 +827,14 @@ client.on('interactionCreate', async interaction => {
             }
             lastId = msg.id;
 
-            let logText = msg.content;
+            let logText = msg.content || '';
             if (msg.embeds && msg.embeds.length > 0) {
               const embed = msg.embeds[0];
               logText = embed.description || embed.title || '';
             }
 
-            logText = logText.replace(/\n+/g, ' ');
+            logText = (logText || '').replace(/\n+/g, ' ').trim();
+            if (!logText) logText = '[No text content / embed description]';
 
             const msgTime = new Date(msg.createdTimestamp + 5.5 * 60 * 60 * 1000);
             const hours = msgTime.getUTCHours();
