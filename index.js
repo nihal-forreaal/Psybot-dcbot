@@ -128,11 +128,7 @@ const onReady = async () => {
         }
       ]
     },
-    {
-      name: 'setup-stats',
-      description: 'Creates live server stats dashboard (Admins only).',
-      defaultMemberPermissions: '8'
-    },
+
     {
       name: 'gamble',
       description: 'Gamble and play minigames to earn coins!',
@@ -257,150 +253,9 @@ const onReady = async () => {
     console.log('[✅ Log Setup] Log channels already configured, skipping auto-setup.');
   }
 
-  // ---- Mega Cleanup for duplicate stats ----
-  const megaCleanupFlag = path.join(__dirname, 'mega_cleanup.flag');
-  const statsConfigPath = path.join(__dirname, 'statsConfig.json');
-  
-  if (!fs.existsSync(megaCleanupFlag)) {
-    console.log('[🗑️ Mega Cleanup] Nuking all duplicate stats channels...');
-    const guild = client.guilds.cache.first();
-    if (guild) {
-      const namesToDelete = ['FAM ˅', '╔ 📊 𝐒𝐄𝐑𝐕𝐄𝐑 𝐒𝐓𝐀𝐓𝐔𝐒 📊 ╗', 'Psybot • YouTube Stats ˅'];
-      const categories = guild.channels.cache.filter(c => c.type === 4 && namesToDelete.includes(c.name));
-      
-      for (const [id, cat] of categories) {
-        for (const [childId, child] of cat.children.cache) {
-          await child.delete().catch(() => {});
-        }
-        await cat.delete().catch(() => {});
-      }
-      
-      if (fs.existsSync(statsConfigPath)) {
-        fs.unlinkSync(statsConfigPath);
-      }
-      fs.writeFileSync(megaCleanupFlag, 'done');
-    }
-  }
-
-  // ---- Server Stats Auto-Setup ----
-  let needsSetup = !fs.existsSync(statsConfigPath);
-
-  if (needsSetup) {
-    console.log('[📊 Stats] Stats dashboard not found. Auto-setting up...');
-    const guild = client.guilds.cache.first();
-    if (guild) {
-      try {
-        const { ChannelType, PermissionFlagsBits } = require('discord.js');
-        const adminPerms = [
-          { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] },
-          { id: guild.members.me.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels] }
-        ];
-
-        const serverCat = await guild.channels.create({ name: 'FAM ˅', type: ChannelType.GuildCategory });
-        const membersChannel = await guild.channels.create({ name: 'Members: 0', type: ChannelType.GuildVoice, parent: serverCat.id, permissionOverwrites: adminPerms });
-        const subsChannel = await guild.channels.create({ name: 'Subscribers: N/A', type: ChannelType.GuildVoice, parent: serverCat.id, permissionOverwrites: adminPerms });
-        const viewsChannel = await guild.channels.create({ name: 'Views: N/A', type: ChannelType.GuildVoice, parent: serverCat.id, permissionOverwrites: adminPerms });
-
-        fs.writeFileSync(statsConfigPath, JSON.stringify({
-          categoryId: serverCat.id,
-          membersId: membersChannel.id,
-          subsId: subsChannel.id,
-          viewsId: viewsChannel.id
-        }, null, 2));
-        console.log('[✅ Stats] Stats dashboard auto-setup complete!');
-      } catch (err) {
-        console.error('Failed auto-setup of stats dashboard:', err.message);
-      }
-    }
-  }
-
-  // Run stats update every 10 minutes (600,000 ms)
-  setInterval(updateServerStats, 600000);
-  // Also run it 5 seconds after boot to sync immediately
-  setTimeout(updateServerStats, 5000);
-
 };
 
-// ---- Server Stats Dashboard Auto-Updater ----
-const statsConfigPath = path.join(__dirname, 'statsConfig.json');
-const updateServerStats = async () => {
-  try {
-    if (!fs.existsSync(statsConfigPath)) return;
-    const cfg = JSON.parse(fs.readFileSync(statsConfigPath, 'utf8'));
-    if (!cfg.membersId) return;
 
-    const guild = client.guilds.cache.first();
-    if (!guild) return;
-    await guild.members.fetch(); // Ensure all members are cached
-
-    const membersChannel = guild.channels.cache.get(cfg.membersId);
-    const subsChannel = guild.channels.cache.get(cfg.subsId);
-    const viewsChannel = guild.channels.cache.get(cfg.viewsId);
-
-    // 1. Update Server Stats
-    if (membersChannel) {
-      const botsCount = guild.members.cache.filter(m => m.user.bot).size;
-      const totalMembers = guild.memberCount - botsCount;
-      await membersChannel.setName(`Members: ${totalMembers}`).catch(() => {});
-    }
-
-    // 2. Update YouTube Stats
-    let subs = 'N/A', views = 'N/A';
-    if (subsChannel || viewsChannel) {
-      try {
-        const apiKey = process.env.YOUTUBE_API_KEY;
-        if (apiKey) {
-          // Use 100% reliable Official YouTube API
-          const axios = require('axios');
-          const url = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=UCqHUm56Fy2FGS1CdNtqa5aA&key=${apiKey}`;
-          const { data } = await axios.get(url);
-          
-          if (data && data.items && data.items.length > 0) {
-            const stats = data.items[0].statistics;
-            if (stats.subscriberCount) {
-              let num = Number(stats.subscriberCount);
-              if (num >= 1000000) subs = (num / 1000000).toFixed(2) + 'M';
-              else if (num >= 1000) subs = (num / 1000).toFixed(2) + 'K';
-              else subs = num.toString();
-            }
-            if (stats.viewCount) views = Number(stats.viewCount).toLocaleString();
-          }
-        } else {
-          // Fallback to yt-channel-info
-          const ytChannelInfo = require('yt-channel-info');
-          const ytData = await ytChannelInfo.getChannelInfo({ channelHandle: '@psybotlive' }).catch(() => null);
-          if (ytData && ytData.subscriberCount) {
-            subs = ytData.subscriberCount.replace(/ subscribers?/i, '').trim();
-          }
-          
-          const axios = require('axios');
-          const { data } = await axios.get('https://www.youtube.com/@psybotlive/about', {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-          }).catch(() => ({ data: '' }));
-          
-          const subMatch = data.match(/"subscriberCountText":\{"simpleText":"([^"]+)"/i) || data.match(/{"accessibilityData":{"label":"([^"]+ subscribers)"}}/i);
-          if (subMatch && subMatch[1] && subs === 'N/A') {
-            subs = subMatch[1].replace(/ subscribers?/i, '').trim();
-          }
-
-          const viewMatch = data.match(/"viewCountText":\{"simpleText":"([^"]+)"/i);
-          if (viewMatch && viewMatch[1]) {
-            views = viewMatch[1].replace(/ views?/i, '').trim();
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch YT stats:', err.message);
-      }
-      
-      if (subsChannel) await subsChannel.setName(`Subscribers: ${subs}`).catch(() => {});
-      if (viewsChannel) await viewsChannel.setName(`Views: ${views}`).catch(() => {});
-    }
-
-    console.log(`[📊 Stats] Updated stats dashboard successfully.`);
-  } catch (err) {
-    console.error('[📊 Stats Error]', err.message);
-  }
-};
 
 client.once('ready', onReady);
 
@@ -779,65 +634,7 @@ client.on('interactionCreate', async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options, guild, member } = interaction;
 
-    if (commandName === 'setup-stats') {
-      if (!member.permissions.has('Administrator')) {
-        return interaction.reply({ content: '❌ Only administrators can run this command.', ephemeral: true });
-      }
-      await interaction.deferReply({ ephemeral: true });
-      try {
-        const { ChannelType, PermissionFlagsBits } = require('discord.js');
-        const adminPerms = [
-          { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.Connect] },
-          { id: guild.members.me.id, allow: [PermissionFlagsBits.Connect, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels] }
-        ];
 
-        // Category 1: FAM Stats
-        const serverCat = await guild.channels.create({
-          name: 'FAM ˅',
-          type: ChannelType.GuildCategory
-        });
-
-        const membersChannel = await guild.channels.create({
-          name: 'Members: 0',
-          type: ChannelType.GuildVoice,
-          parent: serverCat.id,
-          permissionOverwrites: adminPerms
-        });
-
-        const subsChannel = await guild.channels.create({
-          name: 'Subscribers: N/A',
-          type: ChannelType.GuildVoice,
-          parent: serverCat.id,
-          permissionOverwrites: adminPerms
-        });
-
-        const viewsChannel = await guild.channels.create({
-          name: 'Views: N/A',
-          type: ChannelType.GuildVoice,
-          parent: serverCat.id,
-          permissionOverwrites: adminPerms
-        });
-
-        const fs = require('fs');
-        const path = require('path');
-        fs.writeFileSync(path.join(__dirname, 'statsConfig.json'), JSON.stringify({
-          categoryId: serverCat.id,
-          membersId: membersChannel.id,
-          subsId: subsChannel.id,
-          viewsId: viewsChannel.id
-        }, null, 2));
-
-        await interaction.editReply({ content: '✅ Stats Dashboard created! Syncing stats now...' });
-        
-        // Trigger initial sync immediately
-        await updateServerStats();
-        
-        return;
-      } catch (err) {
-        console.error('Failed to setup stats:', err);
-        return interaction.editReply({ content: '❌ Failed to create stats dashboard.' });
-      }
-    }
 
     if (commandName === 'gamble') {
       if (interaction.channelId !== '1512008740361076776') {
