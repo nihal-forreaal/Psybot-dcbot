@@ -26,6 +26,47 @@ const TICKET_PANEL_CHANNEL_ID = process.env.TICKET_PANEL_CHANNEL_ID || '15051640
 // LEVEL_SAVE_DELAY_MS removed (unused constant)
 const MAX_FAKE_REPLIES = 5;
 const balanceUtil = require('./balanceUtil');
+// ---- Guild Configuration Mappings ----
+const guildConfigsPath = path.join(__dirname, 'guildConfigs.json');
+
+function getGuildConfig(guildId) {
+  try {
+    const data = JSON.parse(fs.readFileSync(guildConfigsPath, 'utf8'));
+    return data[guildId] || data['default'] || { lofiChannelId: '1512025016987029576', gambleChannelId: '1512008740361076776' };
+  } catch (err) {
+    return { lofiChannelId: '1512025016987029576', gambleChannelId: '1512008740361076776' };
+  }
+}
+
+function saveGuildConfig(guildId, config) {
+  try {
+    let data = {};
+    if (fs.existsSync(guildConfigsPath)) {
+      data = JSON.parse(fs.readFileSync(guildConfigsPath, 'utf8'));
+    }
+    data[guildId] = { ...data[guildId], ...config };
+    fs.writeFileSync(guildConfigsPath, JSON.stringify(data, null, 2), 'utf8');
+  } catch (err) {
+    console.error(`[Config] Failed to save config for guild ${guildId}:`, err.message);
+  }
+}
+
+const guildStates = new Map();
+
+function getGuildState(guildId) {
+  if (!guildStates.has(guildId)) {
+    guildStates.set(guildId, {
+      voiceConnection: null,
+      audioPlayer: null,
+      currentStreamUrl: 'https://stream.laut.fm/lofi',
+      soundcloudQueue: [],
+      currentQueueIndex: 0,
+      isPlayingSoundcloud: false,
+      isRepeating: false
+    });
+  }
+  return guildStates.get(guildId);
+}
 
 const client = new Client({
   intents: [
@@ -358,6 +399,24 @@ const onReady = async () => {
           required: false
         }
       ]
+    },
+    {
+      name: 'setup',
+      description: 'Configure bot settings for this server (Lofi VC and Games channel)',
+      options: [
+        {
+          name: 'lofi-vc',
+          description: 'Select the 24/7 Lofi Voice Channel for this server',
+          type: ApplicationCommandOptionType.Channel,
+          required: false
+        },
+        {
+          name: 'games-channel',
+          description: 'Select the Text Channel allowed for gamble games',
+          type: ApplicationCommandOptionType.Channel,
+          required: false
+        }
+      ]
     }
   ];
 
@@ -418,8 +477,13 @@ const onReady = async () => {
     console.log('[✅ Log Setup] Log channels already configured, skipping auto-setup.');
   }
 
-  // Start 24/7 Lofi VC audio stream
-  startLofiStream();
+  // Start 24/7 Lofi VC audio stream for all guilds
+  for (const guild of client.guilds.cache.values()) {
+    const config = getGuildConfig(guild.id);
+    if (config && config.lofiChannelId) {
+      startLofiStream(guild.id);
+    }
+  }
 };
 
 
@@ -798,69 +862,74 @@ function getLogConfig() {
 
 client.on('interactionCreate', async interaction => {
   if (interaction.isButton() && interaction.customId.startsWith('lofi_')) {
+    const guildId = interaction.guildId;
+    const config = getGuildConfig(guildId);
+    const lofiChannelId = config.lofiChannelId;
+
     const member = interaction.member;
-    if (!member || !member.voice || member.voice.channelId !== '1512025016987029576') {
+    if (!member || !member.voice || member.voice.channelId !== lofiChannelId) {
       return interaction.reply({
-        content: '❌ You must be connected to the Lofi voice channel <#1512025016987029576> to use player controls!',
+        content: `❌ You must be connected to the Lofi voice channel <#${lofiChannelId || 'unknown'}> to use player controls!`,
         ephemeral: true
       });
     }
 
     const action = interaction.customId.split('_')[1];
+    const state = getGuildState(guildId);
 
     if (action === 'pause') {
-      if (audioPlayer && isPlayingSoundcloud) {
-        audioPlayer.pause();
-        console.log('[Lofi Stream] Player paused by button.');
+      if (state.audioPlayer && state.isPlayingSoundcloud) {
+        state.audioPlayer.pause();
+        console.log(`[Lofi Stream - ${guildId}] Player paused by button.`);
       }
     } else if (action === 'resume') {
-      if (audioPlayer && isPlayingSoundcloud) {
-        audioPlayer.unpause();
-        console.log('[Lofi Stream] Player resumed by button.');
+      if (state.audioPlayer && state.isPlayingSoundcloud) {
+        state.audioPlayer.unpause();
+        console.log(`[Lofi Stream - ${guildId}] Player resumed by button.`);
       }
     } else if (action === 'skip') {
-      if (audioPlayer && isPlayingSoundcloud) {
-        console.log('[Lofi Stream] Player skipped by button.');
-        currentQueueIndex++;
-        if (currentQueueIndex < soundcloudQueue.length) {
-          playStream();
+      if (state.audioPlayer && state.isPlayingSoundcloud) {
+        console.log(`[Lofi Stream - ${guildId}] Player skipped by button.`);
+        state.currentQueueIndex++;
+        if (state.currentQueueIndex < state.soundcloudQueue.length) {
+          playStream(guildId);
         } else {
-          isPlayingSoundcloud = false;
-          soundcloudQueue = [];
-          currentQueueIndex = 0;
-          isRepeating = false;
-          playStream();
+          state.isPlayingSoundcloud = false;
+          state.soundcloudQueue = [];
+          state.currentQueueIndex = 0;
+          state.isRepeating = false;
+          playStream(guildId);
         }
       }
     } else if (action === 'repeat') {
-      isRepeating = !isRepeating;
-      console.log(`[Lofi Stream] Repeat toggled to ${isRepeating} by button.`);
+      state.isRepeating = !state.isRepeating;
+      console.log(`[Lofi Stream - ${guildId}] Repeat toggled to ${state.isRepeating} by button.`);
     } else if (action === 'shuffle') {
-      if (isPlayingSoundcloud && soundcloudQueue.length > 1) {
-        console.log('[Lofi Stream] Shuffling queue by button...');
-        const startIndex = currentQueueIndex + 1;
-        for (let i = soundcloudQueue.length - 1; i > startIndex; i--) {
+      if (state.isPlayingSoundcloud && state.soundcloudQueue.length > 1) {
+        console.log(`[Lofi Stream - ${guildId}] Shuffling queue by button...`);
+        const startIndex = state.currentQueueIndex + 1;
+        for (let i = state.soundcloudQueue.length - 1; i > startIndex; i--) {
           const j = startIndex + Math.floor(Math.random() * (i - startIndex + 1));
-          [soundcloudQueue[i], soundcloudQueue[j]] = [soundcloudQueue[j], soundcloudQueue[i]];
+          [state.soundcloudQueue[i], state.soundcloudQueue[j]] = [state.soundcloudQueue[j], state.soundcloudQueue[i]];
         }
       }
     } else if (action === 'clear') {
-      console.log('[Lofi Stream] Queue cleared by button.');
-      soundcloudQueue = [];
-      currentQueueIndex = 0;
-      isRepeating = false;
-      isPlayingSoundcloud = false;
-      playStream();
+      console.log(`[Lofi Stream - ${guildId}] Queue cleared by button.`);
+      state.soundcloudQueue = [];
+      state.currentQueueIndex = 0;
+      state.isRepeating = false;
+      state.isPlayingSoundcloud = false;
+      playStream(guildId);
     } else if (action === 'stop') {
-      console.log('[Lofi Stream] SoundCloud playback stopped by button.');
-      soundcloudQueue = [];
-      currentQueueIndex = 0;
-      isRepeating = false;
-      isPlayingSoundcloud = false;
-      playStream();
+      console.log(`[Lofi Stream - ${guildId}] SoundCloud playback stopped by button.`);
+      state.soundcloudQueue = [];
+      state.currentQueueIndex = 0;
+      state.isRepeating = false;
+      state.isPlayingSoundcloud = false;
+      playStream(guildId);
     }
 
-    const updatedPayload = getPlayerEmbedAndButtons();
+    const updatedPayload = getPlayerEmbedAndButtons(guildId);
     return interaction.update(updatedPayload).catch(() => {});
   }
 
@@ -1146,9 +1215,19 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (commandName === 'lofi') {
-      if (!member.voice || member.voice.channelId !== '1512025016987029576') {
+      const config = getGuildConfig(guild.id);
+      const lofiChannelId = config.lofiChannelId;
+      
+      if (!lofiChannelId) {
         return interaction.reply({
-          content: '❌ You must be connected to the Lofi voice channel <#1512025016987029576> to change the station!',
+          content: '❌ Lofi voice channel is not set up for this server yet. Ask an admin to run `/setup lofi-vc <channel>`.',
+          ephemeral: true
+        });
+      }
+
+      if (!member.voice || member.voice.channelId !== lofiChannelId) {
+        return interaction.reply({
+          content: `❌ You must be connected to the Lofi voice channel <#${lofiChannelId}> to change the station or play SoundCloud!`,
           ephemeral: true
         });
       }
@@ -1165,6 +1244,8 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.deferReply();
 
+      const state = getGuildState(guild.id);
+
       if (soundcloudUrl) {
         if (!soundcloudUrl.toLowerCase().startsWith('https://soundcloud.com/')) {
           return interaction.editReply('❌ Invalid SoundCloud URL. It must start with `https://soundcloud.com/`.');
@@ -1179,7 +1260,7 @@ client.on('interactionCreate', async interaction => {
             return url.replace('-large.', '-t500x500.');
           };
 
-          let isQueueEmpty = !isPlayingSoundcloud || soundcloudQueue.length === 0;
+          let isQueueEmpty = !state.isPlayingSoundcloud || state.soundcloudQueue.length === 0;
           
           if (soundcloudUrl.includes('/sets/')) {
             const setInfo = await scdl.getSetInfo(soundcloudUrl).catch(() => null);
@@ -1202,21 +1283,21 @@ client.on('interactionCreate', async interaction => {
             const artwork = getHighResArtwork(setInfo.artwork_url || tracksToAdd[0]?.artwork);
 
             if (isQueueEmpty) {
-              soundcloudQueue = tracksToAdd;
-              currentQueueIndex = 0;
-              isPlayingSoundcloud = true;
-              isRepeating = false;
-              playStream();
+              state.soundcloudQueue = tracksToAdd;
+              state.currentQueueIndex = 0;
+              state.isPlayingSoundcloud = true;
+              state.isRepeating = false;
+              playStream(guild.id);
 
-              const updatedPayload = getPlayerEmbedAndButtons();
+              const updatedPayload = getPlayerEmbedAndButtons(guild.id);
               return interaction.editReply(updatedPayload);
             } else {
-              soundcloudQueue.push(...tracksToAdd);
+              state.soundcloudQueue.push(...tracksToAdd);
               
               const embed = new EmbedBuilder()
                 .setTitle('🎶 SoundCloud Playlist Added to Queue')
                 .setURL(soundcloudUrl)
-                .setDescription(`**Playlist:** [${setInfo.title}](${soundcloudUrl})\n**Artist:** \`${setInfo.user?.username || 'Unknown'}\`\n**Added:** \`${tracksToAdd.length}\` tracks\n**Position in Queue:** \`#${soundcloudQueue.length - tracksToAdd.length + 1} to #${soundcloudQueue.length}\``)
+                .setDescription(`**Playlist:** [${setInfo.title}](${soundcloudUrl})\n**Artist:** \`${setInfo.user?.username || 'Unknown'}\`\n**Added:** \`${tracksToAdd.length}\` tracks\n**Position in Queue:** \`#${state.soundcloudQueue.length - tracksToAdd.length + 1} to #${state.soundcloudQueue.length}\``)
                 .setThumbnail(artwork)
                 .setColor('#ff5500')
                 .setFooter({ text: 'Psybot • Added to Queue', iconURL: client.user.displayAvatarURL() })
@@ -1242,21 +1323,21 @@ client.on('interactionCreate', async interaction => {
             const artwork = getHighResArtwork(trackInfo.artwork_url);
 
             if (isQueueEmpty) {
-              soundcloudQueue = [trackToAdd];
-              currentQueueIndex = 0;
-              isPlayingSoundcloud = true;
-              isRepeating = false;
-              playStream();
+              state.soundcloudQueue = [trackToAdd];
+              state.currentQueueIndex = 0;
+              state.isPlayingSoundcloud = true;
+              state.isRepeating = false;
+              playStream(guild.id);
 
-              const updatedPayload = getPlayerEmbedAndButtons();
+              const updatedPayload = getPlayerEmbedAndButtons(guild.id);
               return interaction.editReply(updatedPayload);
             } else {
-              soundcloudQueue.push(trackToAdd);
+              state.soundcloudQueue.push(trackToAdd);
 
               const embed = new EmbedBuilder()
                 .setTitle('🎶 SoundCloud Track Added to Queue')
                 .setURL(soundcloudUrl)
-                .setDescription(`**Track:** [${trackInfo.title}](${soundcloudUrl})\n**Artist:** \`${trackInfo.user?.username || 'Unknown'}\`\n**Position in Queue:** \`#${soundcloudQueue.length}\``)
+                .setDescription(`**Track:** [${trackInfo.title}](${soundcloudUrl})\n**Artist:** \`${trackInfo.user?.username || 'Unknown'}\`\n**Position in Queue:** \`#${state.soundcloudQueue.length}\``)
                 .setThumbnail(artwork)
                 .setColor('#ff5500')
                 .setFooter({ text: 'Psybot • Added to Queue', iconURL: client.user.displayAvatarURL() })
@@ -1272,10 +1353,10 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (station) {
-        isPlayingSoundcloud = false;
-        soundcloudQueue = [];
-        currentQueueIndex = 0;
-        isRepeating = false;
+        state.isPlayingSoundcloud = false;
+        state.soundcloudQueue = [];
+        state.currentQueueIndex = 0;
+        state.isRepeating = false;
 
         const stations = {
           chill: 'https://stream.laut.fm/lofi',
@@ -1283,18 +1364,80 @@ client.on('interactionCreate', async interaction => {
           coding: 'https://stream.laut.fm/chilledbeats'
         };
 
-        currentStreamUrl = stations[station];
-        playStream();
+        state.currentStreamUrl = stations[station];
+        playStream(guild.id);
 
-        const updatedPayload = getPlayerEmbedAndButtons();
+        const updatedPayload = getPlayerEmbedAndButtons(guild.id);
         return interaction.editReply(updatedPayload);
       }
     }
 
+    if (commandName === 'setup') {
+      const { PermissionFlagsBits } = require('discord.js');
+      if (!member.permissions.has(PermissionFlagsBits.ManageGuild)) {
+        return interaction.reply({
+          content: '❌ You must have the `Manage Server` permission to use `/setup`!',
+          ephemeral: true
+        });
+      }
+
+      const lofiVc = options.getChannel('lofi-vc');
+      const gamesChannel = options.getChannel('games-channel');
+
+      if (!lofiVc && !gamesChannel) {
+        return interaction.reply({
+          content: '❌ You must specify at least one option to configure (`lofi-vc` or `games-channel`)!',
+          ephemeral: true
+        });
+      }
+
+      const currentConfig = getGuildConfig(guild.id);
+      const newConfig = { ...currentConfig };
+      let replyParts = [];
+
+      if (lofiVc) {
+        const { ChannelType } = require('discord.js');
+        if (lofiVc.type !== ChannelType.GuildVoice) {
+          return interaction.reply({
+            content: '❌ The `lofi-vc` must be a Voice channel!',
+            ephemeral: true
+          });
+        }
+        newConfig.lofiChannelId = lofiVc.id;
+        replyParts.push(`✅ Lofi 24/7 VC set to <#${lofiVc.id}>`);
+      }
+
+      if (gamesChannel) {
+        const { ChannelType } = require('discord.js');
+        if (gamesChannel.type !== ChannelType.GuildText) {
+          return interaction.reply({
+            content: '❌ The `games-channel` must be a Text channel!',
+            ephemeral: true
+          });
+        }
+        newConfig.gambleChannelId = gamesChannel.id;
+        replyParts.push(`✅ Gamble games channel set to <#${gamesChannel.id}>`);
+      }
+
+      saveGuildConfig(guild.id, newConfig);
+
+      // If Lofi VC was updated, automatically connect and start playing lofi radio!
+      if (lofiVc) {
+        startLofiStream(guild.id);
+      }
+
+      return interaction.reply({
+        content: `🔧 **Server Setup Updated!**\n\n${replyParts.join('\n')}`,
+        ephemeral: true
+      });
+    }
+
     if (commandName === 'gamble') {
-      if (interaction.channelId !== '1512008740361076776') {
+      const config = getGuildConfig(guild.id);
+      const gambleChannelId = config.gambleChannelId;
+      if (gambleChannelId && interaction.channelId !== gambleChannelId) {
         return interaction.reply({ 
-          content: '❌ The gamble commands can only be used in the dedicated games channel <#1512008740361076776>.', 
+          content: `❌ The gamble commands can only be used in the dedicated games channel <#${gambleChannelId}>.`, 
           ephemeral: true 
         });
       }
