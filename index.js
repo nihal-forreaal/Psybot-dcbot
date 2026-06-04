@@ -2676,6 +2676,13 @@ async function startLofiStream() {
     voiceConnection.on('stateChange', (oldState, newState) => {
       console.log(`[Lofi Stream Connection] State changed from ${oldState.status} to ${newState.status}`);
     });
+
+    voiceConnection.on('error', error => {
+      console.error('[Lofi Stream] Voice Connection Error:', error.message);
+      try { voiceConnection.destroy(); } catch (e) {}
+      voiceConnection = null;
+      setTimeout(startLofiStream, 5000);
+    });
     
     if (!audioPlayer) {
       audioPlayer = createAudioPlayer();
