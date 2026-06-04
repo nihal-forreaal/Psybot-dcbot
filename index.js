@@ -220,6 +220,12 @@ const onReady = async () => {
               description: 'Date (format: YYYY-MM-DD). Defaults to today.',
               type: ApplicationCommandOptionType.String,
               required: false
+            },
+            {
+              name: 'page',
+              description: 'Select page number to view (defaults to 1)',
+              type: ApplicationCommandOptionType.Integer,
+              required: false
             }
           ]
         },
@@ -244,6 +250,12 @@ const onReady = async () => {
               name: 'date',
               description: 'Date (format: YYYY-MM-DD). Defaults to today.',
               type: ApplicationCommandOptionType.String,
+              required: false
+            },
+            {
+              name: 'page',
+              description: 'Select page number to view (defaults to 1)',
+              type: ApplicationCommandOptionType.Integer,
               required: false
             }
           ]
@@ -270,6 +282,12 @@ const onReady = async () => {
               description: 'Date (format: YYYY-MM-DD). Defaults to today.',
               type: ApplicationCommandOptionType.String,
               required: false
+            },
+            {
+              name: 'page',
+              description: 'Select page number to view (defaults to 1)',
+              type: ApplicationCommandOptionType.Integer,
+              required: false
             }
           ]
         },
@@ -294,6 +312,12 @@ const onReady = async () => {
               name: 'date',
               description: 'Date (format: YYYY-MM-DD). Defaults to today.',
               type: ApplicationCommandOptionType.String,
+              required: false
+            },
+            {
+              name: 'page',
+              description: 'Select page number to view (defaults to 1)',
+              type: ApplicationCommandOptionType.Integer,
               required: false
             }
           ]
@@ -737,6 +761,128 @@ function getLogConfig() {
 }
 
 client.on('interactionCreate', async interaction => {
+  if (interaction.isButton() && interaction.customId.startsWith('logpage_')) {
+    const [, subcommand, startMsStr, endMsStr, pageStr] = interaction.customId.split('_');
+    const startMs = Number(startMsStr);
+    const endMs = Number(endMsStr);
+    const page = Number(pageStr);
+
+    await interaction.deferUpdate();
+
+    try {
+      const getSnowflake = (ms) => {
+        return ((BigInt(ms) - 1420070400000n) << 22n).toString();
+      };
+
+      const startSnowflake = getSnowflake(startMs);
+      const endSnowflake = getSnowflake(endMs);
+
+      const logCfg = getLogConfig();
+      let targetChannelId;
+      if (subcommand === 'voice') targetChannelId = logCfg.voiceLog;
+      else if (subcommand === 'messages') targetChannelId = logCfg.messageLog;
+      else if (subcommand === 'mute') targetChannelId = logCfg.muteLog;
+      else if (subcommand === 'role') targetChannelId = logCfg.roleLog;
+
+      if (!targetChannelId) return;
+
+      const guild = interaction.guild;
+      const channel = await guild.channels.fetch(targetChannelId).catch(() => null);
+      if (!channel || !channel.isTextBased()) return;
+
+      let logList = [];
+      let lastId = startSnowflake;
+      let keepFetching = true;
+
+      while (keepFetching && logList.length < 100) {
+        const fetched = await channel.messages.fetch({ after: lastId, limit: 100 }).catch(() => null);
+        if (!fetched || fetched.size === 0) break;
+
+        const sorted = [...fetched.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+        for (const msg of sorted) {
+          if (BigInt(msg.id) > BigInt(endSnowflake)) {
+            keepFetching = false;
+            break;
+          }
+          lastId = msg.id;
+
+          let logText = msg.content || '';
+          if (msg.embeds && msg.embeds.length > 0) {
+            const embed = msg.embeds[0];
+            logText = embed.description || embed.title || '';
+          }
+
+          logText = (logText || '').replace(/\n+/g, ' ').trim();
+          if (!logText) logText = '[No text content / embed description]';
+
+          const msgTime = new Date(msg.createdTimestamp + 5.5 * 60 * 60 * 1000);
+          const hours = msgTime.getUTCHours();
+          const minutes = msgTime.getUTCMinutes().toString().padStart(2, '0');
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          const displayHour = hours % 12 || 12;
+          const timeFormatted = `${displayHour}:${minutes} ${ampm}`;
+
+          logList.push(`\`[${timeFormatted}]\` ${logText}`);
+        }
+
+        if (fetched.size < 100) break;
+      }
+
+      const logsPerPage = 10;
+      const totalPages = Math.ceil(logList.length / logsPerPage) || 1;
+      const startIndex = (page - 1) * logsPerPage;
+      const endIndex = startIndex + logsPerPage;
+      const pageLogs = logList.slice(startIndex, endIndex);
+
+      const startDate = new Date(startMs + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const formatHeaderTime = (ms) => {
+        const t = new Date(ms + 5.5 * 60 * 60 * 1000);
+        const h = t.getUTCHours();
+        const m = t.getUTCMinutes().toString().padStart(2, '0');
+        const ampm = h >= 12 ? 'pm' : 'am';
+        const dh = h % 12 || 12;
+        return `${dh}:${m}${ampm}`;
+      };
+      const startTimeStr = formatHeaderTime(startMs);
+      const endTimeStr = formatHeaderTime(endMs);
+
+      const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setTitle(`📋 ${subcommand.toUpperCase()} Logs`)
+        .setDescription(`**Date:** \`${startDate}\`\n**Range:** \`${startTimeStr}\` to \`${endTimeStr}\` (IST)\n\n` + (pageLogs.length > 0 ? pageLogs.join('\n') : '*No logs found for this timeframe.*'))
+        .setColor('#0f8c8c')
+        .setFooter({ text: `Page ${page} of ${totalPages} • Total Logs: ${logList.length}` })
+        .setTimestamp();
+
+      const row = new ActionRowBuilder();
+      const prevButton = new ButtonBuilder()
+        .setCustomId(`logpage_${subcommand}_${startMs}_${endMs}_${page - 1}`)
+        .setLabel('◀ Previous')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(page <= 1);
+
+      const nextButton = new ButtonBuilder()
+        .setCustomId(`logpage_${subcommand}_${startMs}_${endMs}_${page + 1}`)
+        .setLabel('Next ▶')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(page >= totalPages);
+
+      row.addComponents(prevButton, nextButton);
+
+      const updateData = { embeds: [embed] };
+      if (totalPages > 1) {
+        updateData.components = [row];
+      } else {
+        updateData.components = [];
+      }
+
+      await interaction.editReply(updateData);
+    } catch (err) {
+      console.error('Error updating log page:', err);
+    }
+    return;
+  }
+
   if (interaction.isChatInputCommand()) {
     const { commandName, options, guild, member } = interaction;
 
@@ -744,6 +890,7 @@ client.on('interactionCreate', async interaction => {
       const subcommand = options.getSubcommand();
       const startTimeStr = options.getString('start');
       const endTimeStr = options.getString('end');
+      const pageOpt = options.getInteger('page') || 1;
       
       const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
       const defaultDateStr = nowIST.toISOString().split('T')[0];
@@ -815,7 +962,7 @@ client.on('interactionCreate', async interaction => {
         let lastId = startSnowflake;
         let keepFetching = true;
 
-        while (keepFetching && logList.length < 25) {
+        while (keepFetching && logList.length < 100) {
           const fetched = await channel.messages.fetch({ after: lastId, limit: 100 }).catch(() => null);
           if (!fetched || fetched.size === 0) break;
 
@@ -849,14 +996,46 @@ client.on('interactionCreate', async interaction => {
           if (fetched.size < 100) break;
         }
 
-        const { EmbedBuilder } = require('discord.js');
+        const logsPerPage = 10;
+        const totalPages = Math.ceil(logList.length / logsPerPage) || 1;
+        
+        let page = pageOpt;
+        if (page < 1) page = 1;
+        if (page > totalPages) page = totalPages;
+
+        const startIndex = (page - 1) * logsPerPage;
+        const endIndex = startIndex + logsPerPage;
+        const pageLogs = logList.slice(startIndex, endIndex);
+
+        const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
         const embed = new EmbedBuilder()
           .setTitle(`📋 ${subcommand.toUpperCase()} Logs`)
-          .setDescription(`**Date:** \`${dateStr}\`\n**Range:** \`${startTimeStr}\` to \`${endTimeStr}\` (IST)\n\n` + (logList.length > 0 ? logList.join('\n') : '*No logs found for this timeframe.*'))
+          .setDescription(`**Date:** \`${dateStr}\`\n**Range:** \`${startTimeStr}\` to \`${endTimeStr}\` (IST)\n\n` + (pageLogs.length > 0 ? pageLogs.join('\n') : '*No logs found for this timeframe.*'))
           .setColor('#0f8c8c')
+          .setFooter({ text: `Page ${page} of ${totalPages} • Total Logs: ${logList.length}` })
           .setTimestamp();
 
-        return interaction.editReply({ embeds: [embed] });
+        const row = new ActionRowBuilder();
+        const prevButton = new ButtonBuilder()
+          .setCustomId(`logpage_${subcommand}_${startMs}_${endMs}_${page - 1}`)
+          .setLabel('◀ Previous')
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(page <= 1);
+
+        const nextButton = new ButtonBuilder()
+          .setCustomId(`logpage_${subcommand}_${startMs}_${endMs}_${page + 1}`)
+          .setLabel('Next ▶')
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(page >= totalPages);
+
+        row.addComponents(prevButton, nextButton);
+
+        const responseData = { embeds: [embed] };
+        if (totalPages > 1) {
+          responseData.components = [row];
+        }
+
+        return interaction.editReply(responseData);
       } catch (err) {
         console.error('Error querying logs:', err);
         return interaction.editReply({ content: '❌ An error occurred while fetching logs.' });
