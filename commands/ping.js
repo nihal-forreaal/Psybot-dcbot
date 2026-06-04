@@ -106,5 +106,10 @@ module.exports = {
       .setFooter({ text: `Access granted under Dev clearance level 1. • ${new Date().toLocaleString()}`, iconURL: message.author.displayAvatarURL() });
 
     await sent.edit({ content: '', embeds: [embed] });
+
+    // Auto-delete reply after 1 minute (60,000 ms)
+    setTimeout(() => {
+      sent.delete().catch(() => {});
+    }, 60000);
   }
 };
