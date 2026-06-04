@@ -335,6 +335,7 @@ const onReady = async () => {
           ]
         }
       ]
+    },
     {
       name: 'lofi',
       description: 'Change the active 24/7 Lofi radio station or play SoundCloud',
