@@ -335,21 +335,26 @@ const onReady = async () => {
           ]
         }
       ]
-    },
     {
       name: 'lofi',
-      description: 'Change the active 24/7 Lofi radio station',
+      description: 'Change the active 24/7 Lofi radio station or play SoundCloud',
       options: [
         {
           name: 'station',
           description: 'Select the type of Lofi music to play',
           type: ApplicationCommandOptionType.String,
-          required: true,
+          required: false,
           choices: [
             { name: 'Chill (Relaxing Lofi Beats)', value: 'chill' },
             { name: 'Study (Focus Study Lofi)', value: 'study' },
             { name: 'Coding (Electronic Chill Coding Beats)', value: 'coding' }
           ]
+        },
+        {
+          name: 'soundcloud',
+          description: 'Enter a SoundCloud track or playlist/set URL',
+          type: ApplicationCommandOptionType.String,
+          required: false
         }
       ]
     }
@@ -1081,19 +1086,66 @@ client.on('interactionCreate', async interaction => {
       }
 
       const station = options.getString('station');
-      const stations = {
-        chill: 'https://stream.laut.fm/lofi',
-        study: 'https://stream.laut.fm/lofiradio',
-        coding: 'https://stream.laut.fm/chilledbeats'
-      };
+      const soundcloudUrl = options.getString('soundcloud');
 
-      currentStreamUrl = stations[station];
-      playStream();
+      if (!station && !soundcloudUrl) {
+        return interaction.reply({
+          content: '❌ You must specify either a Lofi `station` or a `soundcloud` link!',
+          ephemeral: true
+        });
+      }
 
-      const emojiMap = { chill: '🍃', study: '📚', coding: '💻' };
-      return interaction.reply({
-        content: `✅ Changed Lofi station to **${station.toUpperCase()}** ${emojiMap[station]}\nNow streaming: <${currentStreamUrl}>`
-      });
+      await interaction.deferReply();
+
+      if (soundcloudUrl) {
+        if (!soundcloudUrl.toLowerCase().startsWith('https://soundcloud.com/')) {
+          return interaction.editReply('❌ Invalid SoundCloud URL. It must start with `https://soundcloud.com/`.');
+        }
+
+        try {
+          const scdl = require('soundcloud-downloader').default;
+          
+          if (soundcloudUrl.includes('/sets/')) {
+            const setInfo = await scdl.getSetInfo(soundcloudUrl).catch(() => null);
+            if (!setInfo || !setInfo.tracks || setInfo.tracks.length === 0) {
+              return interaction.editReply('❌ Failed to fetch tracks from this SoundCloud playlist. Make sure it is public.');
+            }
+
+            soundcloudQueue = setInfo.tracks.map(t => t.permalink_url).filter(Boolean);
+            currentQueueIndex = 0;
+            isPlayingSoundcloud = true;
+            playStream();
+
+            return interaction.editReply(`🎶 Loaded SoundCloud Playlist: **${setInfo.title || 'Unknown playlist'}** (${soundcloudQueue.length} tracks). Starting playback...`);
+          } else {
+            // Single track
+            soundcloudQueue = [soundcloudUrl];
+            currentQueueIndex = 0;
+            isPlayingSoundcloud = true;
+            playStream();
+
+            return interaction.editReply(`🎶 Loading and playing SoundCloud track: <${soundcloudUrl}>`);
+          }
+        } catch (err) {
+          console.error('[Lofi Stream] SoundCloud loading error:', err);
+          return interaction.editReply('❌ An error occurred while attempting to fetch the SoundCloud stream.');
+        }
+      }
+
+      if (station) {
+        isPlayingSoundcloud = false;
+        const stations = {
+          chill: 'https://stream.laut.fm/lofi',
+          study: 'https://stream.laut.fm/lofiradio',
+          coding: 'https://stream.laut.fm/chilledbeats'
+        };
+
+        currentStreamUrl = stations[station];
+        playStream();
+
+        const emojiMap = { chill: '🍃', study: '📚', coding: '💻' };
+        return interaction.editReply(`✅ Changed Lofi station to **${station.toUpperCase()}** ${emojiMap[station]}\nNow streaming: <${currentStreamUrl}>`);
+      }
     }
 
     if (commandName === 'gamble') {
@@ -2591,6 +2643,9 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 let voiceConnection = null;
 let audioPlayer = null;
 let currentStreamUrl = 'https://stream.laut.fm/lofi';
+let soundcloudQueue = [];
+let currentQueueIndex = 0;
+let isPlayingSoundcloud = false;
 
 async function startLofiStream() {
   const channelId = '1512025016987029576';
@@ -2629,7 +2684,19 @@ async function startLofiStream() {
       });
       
       audioPlayer.on(AudioPlayerStatus.Idle, () => {
-        console.log('[Lofi Stream] Audio player idle. Re-triggering stream play...');
+        console.log('[Lofi Stream] Audio player idle.');
+        if (isPlayingSoundcloud) {
+          currentQueueIndex++;
+          if (currentQueueIndex < soundcloudQueue.length) {
+            console.log('[Lofi Stream] Playing next SoundCloud track in queue...');
+            playStream();
+            return;
+          } else {
+            console.log('[Lofi Stream] SoundCloud queue finished. Returning to 24/7 radio...');
+            isPlayingSoundcloud = false;
+          }
+        }
+        console.log('[Lofi Stream] Re-triggering default stream play...');
         playStream();
       });
       
@@ -2656,22 +2723,52 @@ async function startLofiStream() {
 async function playStream() {
   if (!audioPlayer) return;
   try {
-    const axios = require('axios');
     const { createAudioResource, StreamType } = require('@discordjs/voice');
-    const streamUrl = currentStreamUrl;
-    
-    const response = await axios({
-      method: 'get',
-      url: streamUrl,
-      responseType: 'stream'
-    });
-    
-    const resource = createAudioResource(response.data, {
-      inputType: StreamType.Arbitrary
-    });
-    
-    audioPlayer.play(resource);
-    console.log('[Lofi Stream] Started playing lofi stream.');
+
+    if (isPlayingSoundcloud && soundcloudQueue.length > 0 && currentQueueIndex < soundcloudQueue.length) {
+      const trackUrl = soundcloudQueue[currentQueueIndex];
+      console.log(`[Lofi Stream] Loading SoundCloud track (${currentQueueIndex + 1}/${soundcloudQueue.length}): ${trackUrl}`);
+      
+      const scdl = require('soundcloud-downloader').default;
+      const stream = await scdl.download(trackUrl).catch(err => {
+        console.error(`[Lofi Stream] Failed to download SoundCloud track stream:`, err.message);
+        return null;
+      });
+
+      if (!stream) {
+        // Skip failed track and move to next
+        console.warn('[Lofi Stream] Skipping failed track...');
+        currentQueueIndex++;
+        setTimeout(playStream, 1000);
+        return;
+      }
+
+      const resource = createAudioResource(stream, {
+        inputType: StreamType.Arbitrary
+      });
+
+      audioPlayer.play(resource);
+      console.log('[Lofi Stream] SoundCloud playback started.');
+    } else {
+      // Default behavior: Stream Lofi Radio
+      isPlayingSoundcloud = false;
+      const axios = require('axios');
+      const streamUrl = currentStreamUrl;
+      console.log(`[Lofi Stream] Loading default radio stream: ${streamUrl}`);
+      
+      const response = await axios({
+        method: 'get',
+        url: streamUrl,
+        responseType: 'stream'
+      });
+      
+      const resource = createAudioResource(response.data, {
+        inputType: StreamType.Arbitrary
+      });
+      
+      audioPlayer.play(resource);
+      console.log('[Lofi Stream] Default radio playback started.');
+    }
   } catch (err) {
     console.error('[Lofi Stream] Failed to play stream resource:', err.message);
     setTimeout(playStream, 5000);
