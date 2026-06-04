@@ -1396,13 +1396,25 @@ client.on('interactionCreate', async interaction => {
       let replyParts = [];
 
       if (lofiVc) {
-        const { ChannelType } = require('discord.js');
+        const { ChannelType, PermissionFlagsBits } = require('discord.js');
         if (lofiVc.type !== ChannelType.GuildVoice) {
           return interaction.reply({
             content: '❌ The `lofi-vc` must be a Voice channel!',
             ephemeral: true
           });
         }
+
+        const voiceChannel = guild.channels.cache.get(lofiVc.id);
+        if (voiceChannel) {
+          const permissions = voiceChannel.permissionsFor(guild.members.me);
+          if (!permissions || !permissions.has(PermissionFlagsBits.ViewChannel) || !permissions.has(PermissionFlagsBits.Connect) || !permissions.has(PermissionFlagsBits.Speak)) {
+            return interaction.reply({
+              content: `❌ I do not have permission to **View**, **Connect**, or **Speak** in <#${lofiVc.id}>. Please check my role permissions in that channel's settings!`,
+              ephemeral: true
+            });
+          }
+        }
+
         newConfig.lofiChannelId = lofiVc.id;
         replyParts.push(`✅ Lofi 24/7 VC set to <#${lofiVc.id}>`);
       }
