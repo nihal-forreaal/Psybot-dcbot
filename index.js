@@ -2606,18 +2606,27 @@ async function startLofiStream() {
   }
 }
 
-function playStream() {
+async function playStream() {
   if (!audioPlayer) return;
   try {
+    const axios = require('axios');
     const { createAudioResource, StreamType } = require('@discordjs/voice');
     const streamUrl = 'https://stream.laut.fm/lofi';
-    const resource = createAudioResource(streamUrl, {
+    
+    const response = await axios({
+      method: 'get',
+      url: streamUrl,
+      responseType: 'stream'
+    });
+    
+    const resource = createAudioResource(response.data, {
       inputType: StreamType.Arbitrary
     });
+    
     audioPlayer.play(resource);
     console.log('[Lofi Stream] Started playing lofi stream.');
   } catch (err) {
-    console.error('[Lofi Stream] Failed to play stream resource:', err);
+    console.error('[Lofi Stream] Failed to play stream resource:', err.message);
     setTimeout(playStream, 5000);
   }
 }
