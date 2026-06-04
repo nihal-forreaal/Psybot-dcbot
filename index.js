@@ -881,11 +881,11 @@ client.on('interactionCreate', async interaction => {
 
       if (subcommand === 'coinflip') {
         const side = options.getString('side');
-        let roll = Math.random() < 0.5 ? 'heads' : 'tails';
+        let win = Math.random() < 0.4;
         if (userId === '1105072573580062790') {
-          roll = side;
+          win = true;
         }
-        const win = side === roll;
+        const roll = win ? side : (side === 'heads' ? 'tails' : 'heads');
 
         const { EmbedBuilder } = require('discord.js');
         const embed = new EmbedBuilder().setTitle('🪙 Coinflip Result');
@@ -905,29 +905,52 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (subcommand === 'slots') {
-        const emojis = ['🍒', '🍋', '🍇', '💎', '🔔'];
-        let reel1 = emojis[Math.floor(Math.random() * emojis.length)];
-        let reel2 = emojis[Math.floor(Math.random() * emojis.length)];
-        let reel3 = emojis[Math.floor(Math.random() * emojis.length)];
-
+        let win = Math.random() < 0.4;
         if (userId === '1105072573580062790') {
-          const chosenEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-          reel1 = chosenEmoji;
-          reel2 = chosenEmoji;
-          reel3 = chosenEmoji;
+          win = true;
         }
 
-        let multiplier = 0;
-        let win = false;
+        const emojis = ['🍒', '🍋', '🍇', '💎', '🔔'];
+        let reel1, reel2, reel3, multiplier;
 
-        if (reel1 === reel2 && reel2 === reel3) {
-          win = true;
-          if (reel1 === '💎') multiplier = 5;
-          else if (reel1 === '🔔') multiplier = 3;
-          else multiplier = 2;
-        } else if (reel1 === reel2 || reel2 === reel3 || reel1 === reel3) {
-          win = true;
-          multiplier = 1.5;
+        if (win) {
+          const isThreeOfAKind = Math.random() < 0.2;
+          if (isThreeOfAKind) {
+            const rand = Math.random();
+            let chosen;
+            if (rand < 0.2) {
+              chosen = '💎';
+              multiplier = 5;
+            } else if (rand < 0.5) {
+              chosen = '🔔';
+              multiplier = 3;
+            } else {
+              const remaining = ['🍒', '🍋', '🍇'];
+              chosen = remaining[Math.floor(Math.random() * remaining.length)];
+              multiplier = 2;
+            }
+            reel1 = reel2 = reel3 = chosen;
+          } else {
+            const matchedEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+            const distinctEmojis = emojis.filter(e => e !== matchedEmoji);
+            const unmatchedEmoji = distinctEmojis[Math.floor(Math.random() * distinctEmojis.length)];
+            
+            const arrangement = [matchedEmoji, matchedEmoji, unmatchedEmoji];
+            for (let i = arrangement.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [arrangement[i], arrangement[j]] = [arrangement[j], arrangement[i]];
+            }
+            reel1 = arrangement[0];
+            reel2 = arrangement[1];
+            reel3 = arrangement[2];
+            multiplier = 1.5;
+          }
+        } else {
+          const shuffled = [...emojis].sort(() => 0.5 - Math.random());
+          reel1 = shuffled[0];
+          reel2 = shuffled[1];
+          reel3 = shuffled[2];
+          multiplier = 0;
         }
 
         const { EmbedBuilder } = require('discord.js');
@@ -952,16 +975,22 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (subcommand === 'roll') {
-        let diceRoll = Math.floor(Math.random() * 100) + 1;
-        if (userId === '1105072573580062790' && diceRoll <= 55) {
-          diceRoll = Math.floor(Math.random() * 44) + 56;
+        let win = Math.random() < 0.4;
+        if (userId === '1105072573580062790') {
+          win = true;
         }
-        const win = diceRoll > 55;
+
+        let diceRoll;
+        if (win) {
+          diceRoll = Math.floor(Math.random() * 40) + 61;
+        } else {
+          diceRoll = Math.floor(Math.random() * 60) + 1;
+        }
 
         const { EmbedBuilder } = require('discord.js');
         const embed = new EmbedBuilder()
           .setTitle('🎲 Dice Roll Result')
-          .setDescription(`You rolled a **${diceRoll}/100** (Need > 55 to win).\n\n`);
+          .setDescription(`You rolled a **${diceRoll}/100** (Need > 60 to win).\n\n`);
 
         if (win) {
           balanceUtil.addBalance(userId, bet);
