@@ -797,6 +797,64 @@ function getLogConfig() {
 }
 
 client.on('interactionCreate', async interaction => {
+  if (interaction.isButton() && interaction.customId.startsWith('lofi_')) {
+    const member = interaction.member;
+    if (!member || !member.voice || member.voice.channelId !== '1512025016987029576') {
+      return interaction.reply({
+        content: '❌ You must be connected to the Lofi voice channel <#1512025016987029576> to use player controls!',
+        ephemeral: true
+      });
+    }
+
+    const action = interaction.customId.split('_')[1];
+
+    if (action === 'pause') {
+      if (audioPlayer && isPlayingSoundcloud) {
+        audioPlayer.pause();
+        console.log('[Lofi Stream] Player paused by button.');
+      }
+    } else if (action === 'resume') {
+      if (audioPlayer && isPlayingSoundcloud) {
+        audioPlayer.unpause();
+        console.log('[Lofi Stream] Player resumed by button.');
+      }
+    } else if (action === 'skip') {
+      if (audioPlayer && isPlayingSoundcloud) {
+        console.log('[Lofi Stream] Player skipped by button.');
+        currentQueueIndex++;
+        if (currentQueueIndex < soundcloudQueue.length) {
+          playStream();
+        } else {
+          isPlayingSoundcloud = false;
+          soundcloudQueue = [];
+          currentQueueIndex = 0;
+          isRepeating = false;
+          playStream();
+        }
+      }
+    } else if (action === 'repeat') {
+      isRepeating = !isRepeating;
+      console.log(`[Lofi Stream] Repeat toggled to ${isRepeating} by button.`);
+    } else if (action === 'clear') {
+      console.log('[Lofi Stream] Queue cleared by button.');
+      soundcloudQueue = [];
+      currentQueueIndex = 0;
+      isRepeating = false;
+      isPlayingSoundcloud = false;
+      playStream();
+    } else if (action === 'stop') {
+      console.log('[Lofi Stream] SoundCloud playback stopped by button.');
+      soundcloudQueue = [];
+      currentQueueIndex = 0;
+      isRepeating = false;
+      isPlayingSoundcloud = false;
+      playStream();
+    }
+
+    const updatedPayload = getPlayerEmbedAndButtons();
+    return interaction.update(updatedPayload).catch(() => {});
+  }
+
   if (interaction.isButton() && interaction.customId.startsWith('logpage_')) {
     const [, subcommand, startMsStr, endMsStr, pageStr] = interaction.customId.split('_');
     const startMs = Number(startMsStr);
@@ -1111,6 +1169,8 @@ client.on('interactionCreate', async interaction => {
             if (!url) return 'https://a-v2.sndcdn.com/assets/images/default/avatar_placeholder-800x800-449e7d95.png';
             return url.replace('-large.', '-t500x500.');
           };
+
+          let isQueueEmpty = !isPlayingSoundcloud || soundcloudQueue.length === 0;
           
           if (soundcloudUrl.includes('/sets/')) {
             const setInfo = await scdl.getSetInfo(soundcloudUrl).catch(() => null);
@@ -1118,23 +1178,43 @@ client.on('interactionCreate', async interaction => {
               return interaction.editReply('❌ Failed to fetch tracks from this SoundCloud playlist. Make sure it is public.');
             }
 
-            soundcloudQueue = setInfo.tracks.map(t => t.permalink_url).filter(Boolean);
-            currentQueueIndex = 0;
-            isPlayingSoundcloud = true;
-            playStream();
+            const tracksToAdd = setInfo.tracks.map(t => ({
+              url: t.permalink_url,
+              title: t.title || 'Unknown Track',
+              artwork: t.artwork_url,
+              artist: t.user?.username || 'Unknown Artist',
+              duration: t.duration
+            })).filter(t => t.url);
 
-            const artwork = getHighResArtwork(setInfo.artwork_url || setInfo.tracks[0]?.artwork_url);
+            if (tracksToAdd.length === 0) {
+              return interaction.editReply('❌ No valid tracks found in this SoundCloud playlist.');
+            }
 
-            const embed = new EmbedBuilder()
-              .setTitle('🎶 SoundCloud Playlist Queued')
-              .setURL(soundcloudUrl)
-              .setDescription(`**Playlist:** [${setInfo.title}](${soundcloudUrl})\n**Artist:** \`${setInfo.user?.username || 'Unknown'}\`\n**Tracks:** \`${soundcloudQueue.length}\` tracks`)
-              .setThumbnail(artwork)
-              .setColor('#ff5500')
-              .setFooter({ text: 'Psybot • Streaming to Lofi VC', iconURL: client.user.displayAvatarURL() })
-              .setTimestamp();
+            const artwork = getHighResArtwork(setInfo.artwork_url || tracksToAdd[0]?.artwork);
 
-            return interaction.editReply({ embeds: [embed] });
+            if (isQueueEmpty) {
+              soundcloudQueue = tracksToAdd;
+              currentQueueIndex = 0;
+              isPlayingSoundcloud = true;
+              isRepeating = false;
+              playStream();
+
+              const updatedPayload = getPlayerEmbedAndButtons();
+              return interaction.editReply(updatedPayload);
+            } else {
+              soundcloudQueue.push(...tracksToAdd);
+              
+              const embed = new EmbedBuilder()
+                .setTitle('🎶 SoundCloud Playlist Added to Queue')
+                .setURL(soundcloudUrl)
+                .setDescription(`**Playlist:** [${setInfo.title}](${soundcloudUrl})\n**Artist:** \`${setInfo.user?.username || 'Unknown'}\`\n**Added:** \`${tracksToAdd.length}\` tracks\n**Position in Queue:** \`#${soundcloudQueue.length - tracksToAdd.length + 1} to #${soundcloudQueue.length}\``)
+                .setThumbnail(artwork)
+                .setColor('#ff5500')
+                .setFooter({ text: 'Psybot • Added to Queue', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+
+              return interaction.editReply({ embeds: [embed] });
+            }
           } else {
             // Single track
             const trackInfo = await scdl.getInfo(soundcloudUrl).catch(() => null);
@@ -1142,23 +1222,39 @@ client.on('interactionCreate', async interaction => {
               return interaction.editReply('❌ Failed to fetch info for this SoundCloud track. Make sure it is public.');
             }
 
-            soundcloudQueue = [soundcloudUrl];
-            currentQueueIndex = 0;
-            isPlayingSoundcloud = true;
-            playStream();
+            const trackToAdd = {
+              url: soundcloudUrl,
+              title: trackInfo.title || 'Unknown Track',
+              artwork: trackInfo.artwork_url,
+              artist: trackInfo.user?.username || 'Unknown Artist',
+              duration: trackInfo.duration
+            };
 
             const artwork = getHighResArtwork(trackInfo.artwork_url);
 
-            const embed = new EmbedBuilder()
-              .setTitle('🎶 SoundCloud Track Loaded')
-              .setURL(soundcloudUrl)
-              .setDescription(`**Track:** [${trackInfo.title}](${soundcloudUrl})\n**Artist:** \`${trackInfo.user?.username || 'Unknown'}\`\n**Genre:** \`${trackInfo.genre || 'Ambient'}\``)
-              .setThumbnail(artwork)
-              .setColor('#ff5500')
-              .setFooter({ text: 'Psybot • Streaming to Lofi VC', iconURL: client.user.displayAvatarURL() })
-              .setTimestamp();
+            if (isQueueEmpty) {
+              soundcloudQueue = [trackToAdd];
+              currentQueueIndex = 0;
+              isPlayingSoundcloud = true;
+              isRepeating = false;
+              playStream();
 
-            return interaction.editReply({ embeds: [embed] });
+              const updatedPayload = getPlayerEmbedAndButtons();
+              return interaction.editReply(updatedPayload);
+            } else {
+              soundcloudQueue.push(trackToAdd);
+
+              const embed = new EmbedBuilder()
+                .setTitle('🎶 SoundCloud Track Added to Queue')
+                .setURL(soundcloudUrl)
+                .setDescription(`**Track:** [${trackInfo.title}](${soundcloudUrl})\n**Artist:** \`${trackInfo.user?.username || 'Unknown'}\`\n**Position in Queue:** \`#${soundcloudQueue.length}\``)
+                .setThumbnail(artwork)
+                .setColor('#ff5500')
+                .setFooter({ text: 'Psybot • Added to Queue', iconURL: client.user.displayAvatarURL() })
+                .setTimestamp();
+
+              return interaction.editReply({ embeds: [embed] });
+            }
           }
         } catch (err) {
           console.error('[Lofi Stream] SoundCloud loading error:', err);
@@ -1168,6 +1264,10 @@ client.on('interactionCreate', async interaction => {
 
       if (station) {
         isPlayingSoundcloud = false;
+        soundcloudQueue = [];
+        currentQueueIndex = 0;
+        isRepeating = false;
+
         const stations = {
           chill: 'https://stream.laut.fm/lofi',
           study: 'https://stream.laut.fm/lofiradio',
@@ -1177,8 +1277,8 @@ client.on('interactionCreate', async interaction => {
         currentStreamUrl = stations[station];
         playStream();
 
-        const emojiMap = { chill: '🍃', study: '📚', coding: '💻' };
-        return interaction.editReply(`✅ Changed Lofi station to **${station.toUpperCase()}** ${emojiMap[station]}\nNow streaming: <${currentStreamUrl}>`);
+        const updatedPayload = getPlayerEmbedAndButtons();
+        return interaction.editReply(updatedPayload);
       }
     }
 
@@ -2680,6 +2780,105 @@ let currentStreamUrl = 'https://stream.laut.fm/lofi';
 let soundcloudQueue = [];
 let currentQueueIndex = 0;
 let isPlayingSoundcloud = false;
+let isRepeating = false;
+
+function getPlayerEmbedAndButtons() {
+  const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+  const { AudioPlayerStatus } = require('@discordjs/voice');
+
+  const embed = new EmbedBuilder();
+  const row = new ActionRowBuilder();
+
+  // Check if current playing is paused
+  const isPaused = audioPlayer ? (audioPlayer.state.status === AudioPlayerStatus.Paused) : false;
+
+  if (isPlayingSoundcloud && soundcloudQueue.length > 0 && currentQueueIndex < soundcloudQueue.length) {
+    const track = soundcloudQueue[currentQueueIndex];
+    
+    // Upscale artwork URL to 500x500
+    const artwork = track.artwork ? track.artwork.replace('-large.', '-t500x500.') : 'https://a-v2.sndcdn.com/assets/images/default/avatar_placeholder-800x800-449e7d95.png';
+
+    const nextTrack = (currentQueueIndex + 1 < soundcloudQueue.length) 
+      ? soundcloudQueue[currentQueueIndex + 1].title 
+      : 'Back to 24/7 Lofi Radio';
+
+    embed.setTitle('🎧 Lofi VC Audio Player')
+      .setURL(track.url)
+      .setDescription(`**Now Playing:** [${track.title}](${track.url})
+**Artist:** \`${track.artist || 'Unknown'}\`
+**Status:** \`${isPaused ? '⏸️ Paused' : '▶️ Playing'}\`
+**Repeat Mode:** \`${isRepeating ? '🔁 On' : '❌ Off'}\`
+**Queue Position:** \`Track ${currentQueueIndex + 1} of ${soundcloudQueue.length}\`
+**Next Up:** \`${nextTrack}\``)
+      .setThumbnail(artwork)
+      .setColor('#ff5500')
+      .setFooter({ text: 'Psybot • SoundCloud Streaming', iconURL: client.user.displayAvatarURL() })
+      .setTimestamp();
+  } else {
+    // 24/7 radio
+    const stationNames = {
+      'https://stream.laut.fm/lofi': 'Chill (Relaxing Lofi Beats)',
+      'https://stream.laut.fm/lofiradio': 'Study (Focus Study Lofi)',
+      'https://stream.laut.fm/chilledbeats': 'Coding (Electronic Chill Coding Beats)'
+    };
+    const activeStation = stationNames[currentStreamUrl] || 'Chill (Relaxing Lofi Beats)';
+
+    embed.setTitle('🎧 Lofi VC Audio Player')
+      .setDescription(`**Now Playing:** 24/7 Lofi Radio 📻
+**Active Station:** \`${activeStation}\`
+**Status:** \`▶️ Playing\`
+**Queue:** \`Empty (Type /lofi to queue SoundCloud tracks)\``)
+      .setThumbnail('https://a-v2.sndcdn.com/assets/images/default/avatar_placeholder-800x800-449e7d95.png')
+      .setColor('#0f8c8c')
+      .setFooter({ text: 'Psybot • 24/7 Radio Stream', iconURL: client.user.displayAvatarURL() })
+      .setTimestamp();
+  }
+
+  // Create buttons
+  // 1. Play / Pause Button
+  const pauseButton = new ButtonBuilder()
+    .setCustomId(isPaused ? 'lofi_resume' : 'lofi_pause')
+    .setLabel(isPaused ? 'Resume' : 'Pause')
+    .setEmoji(isPaused ? '▶️' : '⏸️')
+    .setStyle(isPaused ? ButtonStyle.Success : ButtonStyle.Primary)
+    .setDisabled(!isPlayingSoundcloud);
+
+  // 2. Skip Button
+  const skipButton = new ButtonBuilder()
+    .setCustomId('lofi_skip')
+    .setLabel('Skip')
+    .setEmoji('⏭️')
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(!isPlayingSoundcloud);
+
+  // 3. Repeat Button
+  const repeatButton = new ButtonBuilder()
+    .setCustomId('lofi_repeat')
+    .setLabel(`Repeat: ${isRepeating ? 'ON' : 'OFF'}`)
+    .setEmoji('🔁')
+    .setStyle(isRepeating ? ButtonStyle.Success : ButtonStyle.Secondary)
+    .setDisabled(!isPlayingSoundcloud);
+
+  // 4. Clear Queue Button
+  const clearButton = new ButtonBuilder()
+    .setCustomId('lofi_clear')
+    .setLabel('Clear Queue')
+    .setEmoji('🗑️')
+    .setStyle(ButtonStyle.Danger)
+    .setDisabled(soundcloudQueue.length === 0);
+
+  // 5. Stop Button
+  const stopButton = new ButtonBuilder()
+    .setCustomId('lofi_stop')
+    .setLabel('Stop')
+    .setEmoji('⏹️')
+    .setStyle(ButtonStyle.Danger)
+    .setDisabled(!isPlayingSoundcloud);
+
+  row.addComponents(pauseButton, skipButton, repeatButton, clearButton, stopButton);
+
+  return { embeds: [embed], components: [row] };
+}
 
 async function startLofiStream() {
   const channelId = '1512025016987029576';
@@ -2727,6 +2926,11 @@ async function startLofiStream() {
       audioPlayer.on(AudioPlayerStatus.Idle, () => {
         console.log('[Lofi Stream] Audio player idle.');
         if (isPlayingSoundcloud) {
+          if (isRepeating) {
+            console.log('[Lofi Stream] Repeat mode active. Replaying current track...');
+            playStream();
+            return;
+          }
           currentQueueIndex++;
           if (currentQueueIndex < soundcloudQueue.length) {
             console.log('[Lofi Stream] Playing next SoundCloud track in queue...');
@@ -2735,6 +2939,8 @@ async function startLofiStream() {
           } else {
             console.log('[Lofi Stream] SoundCloud queue finished. Returning to 24/7 radio...');
             isPlayingSoundcloud = false;
+            soundcloudQueue = [];
+            currentQueueIndex = 0;
           }
         }
         console.log('[Lofi Stream] Re-triggering default stream play...');
@@ -2767,8 +2973,9 @@ async function playStream() {
     const { createAudioResource, StreamType } = require('@discordjs/voice');
 
     if (isPlayingSoundcloud && soundcloudQueue.length > 0 && currentQueueIndex < soundcloudQueue.length) {
-      const trackUrl = soundcloudQueue[currentQueueIndex];
-      console.log(`[Lofi Stream] Loading SoundCloud track (${currentQueueIndex + 1}/${soundcloudQueue.length}): ${trackUrl}`);
+      const track = soundcloudQueue[currentQueueIndex];
+      const trackUrl = track.url;
+      console.log(`[Lofi Stream] Loading SoundCloud track (${currentQueueIndex + 1}/${soundcloudQueue.length}): ${track.title} (<${trackUrl}>)`);
       
       const scdl = require('soundcloud-downloader').default;
       const stream = await scdl.download(trackUrl).catch(err => {
