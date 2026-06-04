@@ -383,6 +383,8 @@ const onReady = async () => {
     console.log('[✅ Log Setup] Log channels already configured, skipping auto-setup.');
   }
 
+  // Start 24/7 Lofi VC audio stream
+  startLofiStream();
 };
 
 
@@ -2534,6 +2536,79 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
     }
   }
 });
+
+// ---- Lofi VC Audio Stream Helper ----
+let voiceConnection = null;
+let audioPlayer = null;
+
+async function startLofiStream() {
+  const channelId = '1512025016987029576';
+  const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
+  
+  try {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel || !channel.isVoiceBased()) {
+      console.error(`[Lofi Stream] Channel ${channelId} not found or is not a voice channel.`);
+      return;
+    }
+    
+    const guild = channel.guild;
+    
+    if (voiceConnection) {
+      try { voiceConnection.destroy(); } catch (e) {}
+    }
+    
+    voiceConnection = joinVoiceChannel({
+      channelId: channel.id,
+      guildId: guild.id,
+      adapterCreator: guild.voiceAdapterCreator,
+      selfDeaf: true,
+      selfMute: false
+    });
+    
+    if (!audioPlayer) {
+      audioPlayer = createAudioPlayer();
+      
+      audioPlayer.on(AudioPlayerStatus.Idle, () => {
+        console.log('[Lofi Stream] Audio player idle. Re-triggering stream play...');
+        playStream();
+      });
+      
+      audioPlayer.on('error', error => {
+        console.error('[Lofi Stream] Audio Player Error:', error.message);
+        setTimeout(playStream, 5000);
+      });
+    }
+    
+    voiceConnection.subscribe(audioPlayer);
+    
+    voiceConnection.on(VoiceConnectionStatus.Disconnected, () => {
+      console.warn('[Lofi Stream] Disconnected from VC. Re-establishing connection in 5 seconds...');
+      setTimeout(startLofiStream, 5000);
+    });
+    
+    playStream();
+  } catch (err) {
+    console.error('[Lofi Stream] Error in startLofiStream:', err);
+    setTimeout(startLofiStream, 10000);
+  }
+}
+
+function playStream() {
+  if (!audioPlayer) return;
+  try {
+    const { createAudioResource, StreamType } = require('@discordjs/voice');
+    const streamUrl = 'http://stream.laut.fm/lofi';
+    const resource = createAudioResource(streamUrl, {
+      inputType: StreamType.Arbitrary
+    });
+    audioPlayer.play(resource);
+    console.log('[Lofi Stream] Started playing lofi stream.');
+  } catch (err) {
+    console.error('[Lofi Stream] Failed to play stream resource:', err);
+    setTimeout(playStream, 5000);
+  }
+}
 
 client.login(process.env.TOKEN);
 
