@@ -737,8 +737,7 @@ client.on('messageCreate', async message => {
 
   const earlyFakeMatches = earlyNormalizedMessage.match(/\bfake\b/g) || [];
   if (earlyFakeMatches.length > 0) {
-    const replyCount = Math.min(earlyFakeMatches.length, MAX_FAKE_REPLIES);
-    for (let i = 0; i < replyCount; i += 1) {
+    for (let i = 0; i < earlyFakeMatches.length; i += 1) {
       await message.channel.send('ur are the fake one !!');
     }
     return;
