@@ -642,6 +642,23 @@ try {
 
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
+
+  // Filter out slurs/offensive words (variations of the N-word)
+  const normalizedContent = message.content.toLowerCase().replace(/[\s\-_.]/g, '');
+  const nWordRegex = /n+[i\u00a11\u00ec\u00ed\u00ee\u00ef]+g+a+|n+g+a+|n+i+g+e+r+|n+i+g+g+e+r+/i;
+  
+  if (nWordRegex.test(normalizedContent) || nWordRegex.test(message.content)) {
+    try {
+      await message.delete();
+      // Send a warning that auto-deletes in 5 seconds
+      const warnMsg = await message.channel.send(`⚠️ ${message.author}, that word is not allowed here.`);
+      setTimeout(() => warnMsg.delete().catch(() => {}), 5000);
+      return;
+    } catch (err) {
+      console.error('Failed to delete message containing restricted word:', err.message);
+    }
+  }
+
   console.log(`[MESSAGE] Received from ${message.author.tag} (${message.author.id}) in ${message.guild?.name || 'DM'}: "${message.content}"`);
 
   // Custom reaction for pinging specific user
