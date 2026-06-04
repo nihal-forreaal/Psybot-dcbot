@@ -1105,6 +1105,12 @@ client.on('interactionCreate', async interaction => {
 
         try {
           const scdl = require('soundcloud-downloader').default;
+          const { EmbedBuilder } = require('discord.js');
+
+          const getHighResArtwork = (url) => {
+            if (!url) return 'https://a-v2.sndcdn.com/assets/images/default/avatar_placeholder-800x800-449e7d95.png';
+            return url.replace('-large.', '-t500x500.');
+          };
           
           if (soundcloudUrl.includes('/sets/')) {
             const setInfo = await scdl.getSetInfo(soundcloudUrl).catch(() => null);
@@ -1117,15 +1123,42 @@ client.on('interactionCreate', async interaction => {
             isPlayingSoundcloud = true;
             playStream();
 
-            return interaction.editReply(`🎶 Loaded SoundCloud Playlist: **${setInfo.title || 'Unknown playlist'}** (${soundcloudQueue.length} tracks). Starting playback...`);
+            const artwork = getHighResArtwork(setInfo.artwork_url || setInfo.tracks[0]?.artwork_url);
+
+            const embed = new EmbedBuilder()
+              .setTitle('🎶 SoundCloud Playlist Queued')
+              .setURL(soundcloudUrl)
+              .setDescription(`**Playlist:** [${setInfo.title}](${soundcloudUrl})\n**Artist:** \`${setInfo.user?.username || 'Unknown'}\`\n**Tracks:** \`${soundcloudQueue.length}\` tracks`)
+              .setThumbnail(artwork)
+              .setColor('#ff5500')
+              .setFooter({ text: 'Psybot • Streaming to Lofi VC', iconURL: client.user.displayAvatarURL() })
+              .setTimestamp();
+
+            return interaction.editReply({ embeds: [embed] });
           } else {
             // Single track
+            const trackInfo = await scdl.getInfo(soundcloudUrl).catch(() => null);
+            if (!trackInfo) {
+              return interaction.editReply('❌ Failed to fetch info for this SoundCloud track. Make sure it is public.');
+            }
+
             soundcloudQueue = [soundcloudUrl];
             currentQueueIndex = 0;
             isPlayingSoundcloud = true;
             playStream();
 
-            return interaction.editReply(`🎶 Loading and playing SoundCloud track: <${soundcloudUrl}>`);
+            const artwork = getHighResArtwork(trackInfo.artwork_url);
+
+            const embed = new EmbedBuilder()
+              .setTitle('🎶 SoundCloud Track Loaded')
+              .setURL(soundcloudUrl)
+              .setDescription(`**Track:** [${trackInfo.title}](${soundcloudUrl})\n**Artist:** \`${trackInfo.user?.username || 'Unknown'}\`\n**Genre:** \`${trackInfo.genre || 'Ambient'}\``)
+              .setThumbnail(artwork)
+              .setColor('#ff5500')
+              .setFooter({ text: 'Psybot • Streaming to Lofi VC', iconURL: client.user.displayAvatarURL() })
+              .setTimestamp();
+
+            return interaction.editReply({ embeds: [embed] });
           }
         } catch (err) {
           console.error('[Lofi Stream] SoundCloud loading error:', err);
