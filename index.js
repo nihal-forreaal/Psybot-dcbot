@@ -193,6 +193,112 @@ const onReady = async () => {
           ]
         }
       ]
+    },
+    {
+      name: 'log',
+      description: 'Query and view logs fast for a specific timeframe',
+      options: [
+        {
+          name: 'voice',
+          description: 'Query voice channel logs',
+          type: ApplicationCommandOptionType.Subcommand,
+          options: [
+            {
+              name: 'start',
+              description: 'Start time (e.g. 10am, 10:00, 2:30pm)',
+              type: ApplicationCommandOptionType.String,
+              required: true
+            },
+            {
+              name: 'end',
+              description: 'End time (e.g. 11am, 11:00, 3:30pm)',
+              type: ApplicationCommandOptionType.String,
+              required: true
+            },
+            {
+              name: 'date',
+              description: 'Date (format: YYYY-MM-DD). Defaults to today.',
+              type: ApplicationCommandOptionType.String,
+              required: false
+            }
+          ]
+        },
+        {
+          name: 'messages',
+          description: 'Query message logs',
+          type: ApplicationCommandOptionType.Subcommand,
+          options: [
+            {
+              name: 'start',
+              description: 'Start time (e.g. 10am, 10:00, 2:30pm)',
+              type: ApplicationCommandOptionType.String,
+              required: true
+            },
+            {
+              name: 'end',
+              description: 'End time (e.g. 11am, 11:00, 3:30pm)',
+              type: ApplicationCommandOptionType.String,
+              required: true
+            },
+            {
+              name: 'date',
+              description: 'Date (format: YYYY-MM-DD). Defaults to today.',
+              type: ApplicationCommandOptionType.String,
+              required: false
+            }
+          ]
+        },
+        {
+          name: 'mute',
+          description: 'Query mute/unmute logs',
+          type: ApplicationCommandOptionType.Subcommand,
+          options: [
+            {
+              name: 'start',
+              description: 'Start time (e.g. 10am, 10:00, 2:30pm)',
+              type: ApplicationCommandOptionType.String,
+              required: true
+            },
+            {
+              name: 'end',
+              description: 'End time (e.g. 11am, 11:00, 3:30pm)',
+              type: ApplicationCommandOptionType.String,
+              required: true
+            },
+            {
+              name: 'date',
+              description: 'Date (format: YYYY-MM-DD). Defaults to today.',
+              type: ApplicationCommandOptionType.String,
+              required: false
+            }
+          ]
+        },
+        {
+          name: 'role',
+          description: 'Query role logs',
+          type: ApplicationCommandOptionType.Subcommand,
+          options: [
+            {
+              name: 'start',
+              description: 'Start time (e.g. 10am, 10:00, 2:30pm)',
+              type: ApplicationCommandOptionType.String,
+              required: true
+            },
+            {
+              name: 'end',
+              description: 'End time (e.g. 11am, 11:00, 3:30pm)',
+              type: ApplicationCommandOptionType.String,
+              required: true
+            },
+            {
+              name: 'date',
+              description: 'Date (format: YYYY-MM-DD). Defaults to today.',
+              type: ApplicationCommandOptionType.String,
+              required: false
+            }
+          ]
+        }
+      ]
     }
   ];
 
@@ -633,6 +739,128 @@ function getLogConfig() {
 client.on('interactionCreate', async interaction => {
   if (interaction.isChatInputCommand()) {
     const { commandName, options, guild, member } = interaction;
+
+    if (commandName === 'log') {
+      const subcommand = options.getSubcommand();
+      const startTimeStr = options.getString('start');
+      const endTimeStr = options.getString('end');
+      
+      const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+      const defaultDateStr = nowIST.toISOString().split('T')[0];
+      const dateStr = options.getString('date') || defaultDateStr;
+
+      const parseTime = (date, time) => {
+        const match = time.trim().toLowerCase().match(/^(\d+)(?::(\d+))?\s*(am|pm)?$/);
+        if (!match) return null;
+        let hours = parseInt(match[1]);
+        const minutes = match[2] ? parseInt(match[2]) : 0;
+        const ampm = match[3];
+        if (ampm === 'pm' && hours < 12) hours += 12;
+        if (ampm === 'am' && hours === 12) hours = 0;
+
+        const dateParts = date.split('-');
+        if (dateParts.length !== 3) return null;
+        const y = parseInt(dateParts[0]);
+        const m = parseInt(dateParts[1]) - 1;
+        const d = parseInt(dateParts[2]);
+
+        const utcDate = new Date(Date.UTC(y, m, d, hours, minutes));
+        return utcDate.getTime() - (5.5 * 60 * 60 * 1000);
+      };
+
+      const startMs = parseTime(dateStr, startTimeStr);
+      const endMs = parseTime(dateStr, endTimeStr);
+
+      if (!startMs || !endMs) {
+        return interaction.reply({ 
+          content: '❌ Invalid time or date format. Use `10am`, `2:30pm`, or `14:00` for times, and `YYYY-MM-DD` for date.', 
+          ephemeral: true 
+        });
+      }
+
+      if (startMs >= endMs) {
+        return interaction.reply({ 
+          content: '❌ Start time must be before end time!', 
+          ephemeral: true 
+        });
+      }
+
+      const getSnowflake = (ms) => {
+        return ((BigInt(ms) - 1420070400000n) << 22n).toString();
+      };
+
+      const startSnowflake = getSnowflake(startMs);
+      const endSnowflake = getSnowflake(endMs);
+
+      const logCfg = getLogConfig();
+      let targetChannelId;
+      if (subcommand === 'voice') targetChannelId = logCfg.voiceLog;
+      else if (subcommand === 'messages') targetChannelId = logCfg.messageLog;
+      else if (subcommand === 'mute') targetChannelId = logCfg.muteLog;
+      else if (subcommand === 'role') targetChannelId = logCfg.roleLog;
+
+      if (!targetChannelId) {
+        return interaction.reply({ content: '❌ Log channel configuration not found.', ephemeral: true });
+      }
+
+      const channel = await guild.channels.fetch(targetChannelId).catch(() => null);
+      if (!channel || !channel.isTextBased()) {
+        return interaction.reply({ content: '❌ Log channel not found or not text-based.', ephemeral: true });
+      }
+
+      await interaction.deferReply();
+
+      try {
+        let logList = [];
+        let lastId = startSnowflake;
+        let keepFetching = true;
+
+        while (keepFetching && logList.length < 25) {
+          const fetched = await channel.messages.fetch({ after: lastId, limit: 100 }).catch(() => null);
+          if (!fetched || fetched.size === 0) break;
+
+          const sorted = [...fetched.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+          for (const msg of sorted) {
+            if (BigInt(msg.id) > BigInt(endSnowflake)) {
+              keepFetching = false;
+              break;
+            }
+            lastId = msg.id;
+
+            let logText = msg.content;
+            if (msg.embeds && msg.embeds.length > 0) {
+              const embed = msg.embeds[0];
+              logText = embed.description || embed.title || '';
+            }
+
+            logText = logText.replace(/\n+/g, ' ');
+
+            const msgTime = new Date(msg.createdTimestamp + 5.5 * 60 * 60 * 1000);
+            const hours = msgTime.getUTCHours();
+            const minutes = msgTime.getUTCMinutes().toString().padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            const displayHour = hours % 12 || 12;
+            const timeFormatted = `${displayHour}:${minutes} ${ampm}`;
+
+            logList.push(`\`[${timeFormatted}]\` ${logText}`);
+          }
+
+          if (fetched.size < 100) break;
+        }
+
+        const { EmbedBuilder } = require('discord.js');
+        const embed = new EmbedBuilder()
+          .setTitle(`📋 ${subcommand.toUpperCase()} Logs`)
+          .setDescription(`**Date:** \`${dateStr}\`\n**Range:** \`${startTimeStr}\` to \`${endTimeStr}\` (IST)\n\n` + (logList.length > 0 ? logList.join('\n') : '*No logs found for this timeframe.*'))
+          .setColor('#0f8c8c')
+          .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+      } catch (err) {
+        console.error('Error querying logs:', err);
+        return interaction.editReply({ content: '❌ An error occurred while fetching logs.' });
+      }
+    }
 
 
 
