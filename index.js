@@ -366,10 +366,10 @@ const onReady = async () => {
     await client.application.commands.set(slashCommands);
     console.log(`Successfully registered global slash commands!`);
 
-    // Clear guild-level commands to ensure no duplicates exist (only global ones will remain)
+    // Register guild-level commands as well to ensure they update instantly during testing
     for (const guild of client.guilds.cache.values()) {
-      await guild.commands.set([]);
-      console.log(`Cleared guild-specific commands for: ${guild.name}`);
+      await guild.commands.set(slashCommands);
+      console.log(`Registered guild-specific commands for: ${guild.name}`);
     }
   } catch (err) {
     console.error('Error deploying slash commands:', err);
