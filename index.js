@@ -2577,9 +2577,17 @@ async function startLofiStream() {
       selfDeaf: true,
       selfMute: false
     });
+
+    voiceConnection.on('stateChange', (oldState, newState) => {
+      console.log(`[Lofi Stream Connection] State changed from ${oldState.status} to ${newState.status}`);
+    });
     
     if (!audioPlayer) {
       audioPlayer = createAudioPlayer();
+
+      audioPlayer.on('stateChange', (oldState, newState) => {
+        console.log(`[Lofi Stream Player] State changed from ${oldState.status} to ${newState.status}`);
+      });
       
       audioPlayer.on(AudioPlayerStatus.Idle, () => {
         console.log('[Lofi Stream] Audio player idle. Re-triggering stream play...');
