@@ -335,6 +335,23 @@ const onReady = async () => {
           ]
         }
       ]
+    },
+    {
+      name: 'lofi',
+      description: 'Change the active 24/7 Lofi radio station',
+      options: [
+        {
+          name: 'station',
+          description: 'Select the type of Lofi music to play',
+          type: ApplicationCommandOptionType.String,
+          required: true,
+          choices: [
+            { name: 'Chill (Relaxing Lofi Beats)', value: 'chill' },
+            { name: 'Study (Focus Study Lofi)', value: 'study' },
+            { name: 'Coding (Electronic Chill Coding Beats)', value: 'coding' }
+          ]
+        }
+      ]
     }
   ];
 
@@ -1055,7 +1072,29 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
+    if (commandName === 'lofi') {
+      if (!member.voice || member.voice.channelId !== '1512025016987029576') {
+        return interaction.reply({
+          content: '❌ You must be connected to the Lofi voice channel <#1512025016987029576> to change the station!',
+          ephemeral: true
+        });
+      }
 
+      const station = options.getString('station');
+      const stations = {
+        chill: 'https://stream.laut.fm/lofi',
+        study: 'https://stream.laut.fm/lofiradio',
+        coding: 'https://stream.laut.fm/chilledbeats'
+      };
+
+      currentStreamUrl = stations[station];
+      playStream();
+
+      const emojiMap = { chill: '🍃', study: '📚', coding: '💻' };
+      return interaction.reply({
+        content: `✅ Changed Lofi station to **${station.toUpperCase()}** ${emojiMap[station]}\nNow streaming: <${currentStreamUrl}>`
+      });
+    }
 
     if (commandName === 'gamble') {
       if (interaction.channelId !== '1512008740361076776') {
@@ -2551,6 +2590,7 @@ client.on('guildMemberUpdate', async (oldMember, newMember) => {
 // ---- Lofi VC Audio Stream Helper ----
 let voiceConnection = null;
 let audioPlayer = null;
+let currentStreamUrl = 'https://stream.laut.fm/lofi';
 
 async function startLofiStream() {
   const channelId = '1512025016987029576';
@@ -2618,7 +2658,7 @@ async function playStream() {
   try {
     const axios = require('axios');
     const { createAudioResource, StreamType } = require('@discordjs/voice');
-    const streamUrl = 'https://stream.laut.fm/lofi';
+    const streamUrl = currentStreamUrl;
     
     const response = await axios({
       method: 'get',
