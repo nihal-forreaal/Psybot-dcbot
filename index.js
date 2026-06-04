@@ -1279,7 +1279,7 @@ client.on('interactionCreate', async interaction => {
 
         const stations = {
           chill: 'https://stream.laut.fm/lofi',
-          study: 'https://stream.laut.fm/lofiradio',
+          study: 'https://stream.laut.fm/lofi-radio',
           coding: 'https://stream.laut.fm/chilledbeats'
         };
 
@@ -2826,7 +2826,7 @@ function getPlayerEmbedAndButtons() {
     // 24/7 radio
     const stationNames = {
       'https://stream.laut.fm/lofi': 'Chill (Relaxing Lofi Beats)',
-      'https://stream.laut.fm/lofiradio': 'Study (Focus Study Lofi)',
+      'https://stream.laut.fm/lofi-radio': 'Study (Focus Study Lofi)',
       'https://stream.laut.fm/chilledbeats': 'Coding (Electronic Chill Coding Beats)'
     };
     const activeStation = stationNames[currentStreamUrl] || 'Chill (Relaxing Lofi Beats)';
