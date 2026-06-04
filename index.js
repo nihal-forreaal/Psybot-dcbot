@@ -2598,7 +2598,7 @@ function playStream() {
   if (!audioPlayer) return;
   try {
     const { createAudioResource, StreamType } = require('@discordjs/voice');
-    const streamUrl = 'http://stream.laut.fm/lofi';
+    const streamUrl = 'https://stream.laut.fm/lofi';
     const resource = createAudioResource(streamUrl, {
       inputType: StreamType.Arbitrary
     });
