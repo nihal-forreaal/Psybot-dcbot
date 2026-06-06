@@ -324,6 +324,7 @@ const onReady = async () => {
             }
           ]
         }
+      ]
     }
   ];
 
