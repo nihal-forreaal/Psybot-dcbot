@@ -200,6 +200,43 @@ const slashCommands = [
       },
     ],
   },
+  {
+    name: 'misc',
+    description: 'Miscellaneous utility commands',
+    options: [
+      {
+        name: 'avatar',
+        description: "Displays a member's avatar.",
+        type: ApplicationCommandOptionType.Subcommand,
+        options: [
+          {
+            name: 'user',
+            description: 'The user to display the avatar of',
+            type: ApplicationCommandOptionType.User,
+            required: false,
+          },
+        ],
+      },
+      {
+        name: 'serverinfo',
+        description: 'Displays diagnostic information about this server.',
+        type: ApplicationCommandOptionType.Subcommand,
+      },
+      {
+        name: 'userinfo',
+        description: 'Displays diagnostic information about a server member.',
+        type: ApplicationCommandOptionType.Subcommand,
+        options: [
+          {
+            name: 'user',
+            description: 'The user to query details for',
+            type: ApplicationCommandOptionType.User,
+            required: false,
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 module.exports = { slashCommands };

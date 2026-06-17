@@ -13,6 +13,7 @@ const {
   handleVcAccess, handleVcBlock, handleVcCoown, handleVcEdit,
   handleVcEditModal, handleVcAccessModal, handleVcBlockModal,
 } = require('../modules/vcPanel');
+const { handleMiscCommand } = require('../modules/misc');
 
 
 // Channel that mod actions are restricted to
@@ -37,6 +38,7 @@ function register(client) {
 
         if (commandName === 'log')    return await handleLogCommand(interaction);
         if (commandName === 'gamble') return await handleGamble(interaction);
+        if (commandName === 'misc')   return await handleMiscCommand(interaction);
 
         // Moderation commands (kick, mute, deafen, defen, timeout)
         return await handleModCommand(interaction);
