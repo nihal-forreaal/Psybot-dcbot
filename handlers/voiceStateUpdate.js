@@ -109,7 +109,7 @@ function register(client) {
         let customVCOwnerId = null;
         for (const [uid, data] of tempVCs.entries()) {
           if (uid.startsWith('voice_')) continue;
-          if (data?.vcId === newState.channel.id) { customVCOwnerId = uid; break; }
+          if (data && data.vcId === newState.channel.id) { customVCOwnerId = uid; break; }
         }
         if (customVCOwnerId && customVCOwnerId !== newState.member.user.id) {
           await newState.channel.send(`👋 Welcome ${newState.member}! You have joined <@${customVCOwnerId}>'s room.`).catch(err => {
@@ -121,9 +121,25 @@ function register(client) {
       // Auto-create temp VC when joining the designated "create" channel
       if (createVCChannelId && newState.channel.id === createVCChannelId) {
         try {
-          const guild  = newState.guild;
-          const user   = newState.member.user;
-          const uid    = user.id;
+          const guild = newState.guild;
+          const user  = newState.member.user;
+          const uid   = user.id;
+
+          // ── BUG FIX: delete any pre-existing temp VC BEFORE creating the new
+          // one. Without this, tempVCs gets overwritten with the new VC's ID
+          // before the "moved between channels" block below can read the OLD
+          // ID — so the old channel was never deleted and became a ghost VC.
+          const existingVCData = tempVCs.get(uid);
+          if (existingVCData) {
+            const oldVC = guild.channels.cache.get(existingVCData.vcId);
+            if (oldVC) {
+              await oldVC.delete('Owner rejoined create channel — replacing with new VC').catch(err =>
+                console.error('Failed to delete old temp VC on rejoin:', err)
+              );
+              console.log(`🗑️ Deleted old temp VC for ${user.username} (rejoin cleanup)`);
+            }
+            tempVCs.delete(uid);
+          }
 
           const tempVC = await guild.channels.create({
             name: `🎙️ ${user.username}`,
@@ -212,7 +228,7 @@ function register(client) {
           tempVCs.delete(`voice_${userId}`);
         }
 
-        // Delete temp VC if the owner left
+        // Delete temp VC if the owner left the server entirely
         const tempVCData = tempVCs.get(userId);
         if (tempVCData) {
           const vcChannel = oldState.guild.channels.cache.get(tempVCData.vcId);
@@ -227,8 +243,15 @@ function register(client) {
       }
     }
 
-    // ── User moved between channels ───────────────────────────────────────────
+    // ── User moved between channels (non-create-channel moves) ───────────────
+    // NOTE: moves back to the create channel are already handled above.
+    // This block handles the case where the owner moves to a *different* non-
+    // create channel (e.g. joins someone else's VC) and their old temp VC
+    // should be deleted.
     if (oldState.channel && newState.channel && oldState.channel !== newState.channel) {
+      // Skip if they moved INTO the create channel — already handled above
+      if (newState.channel.id === createVCChannelId) return;
+
       try {
         const userId     = newState.member.user.id;
         const tempVCData = tempVCs.get(userId);
@@ -237,7 +260,7 @@ function register(client) {
           const vcChannel = oldState.guild.channels.cache.get(tempVCData.vcId);
           if (vcChannel) {
             await vcChannel.delete().catch(err => console.error('Failed to delete temp VC on switch:', err));
-            console.log('🗑️ Deleted temp VC because owner left');
+            console.log('🗑️ Deleted temp VC because owner moved to another channel');
           }
           tempVCs.delete(userId);
         }
