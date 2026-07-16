@@ -3,8 +3,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
 /**
- * Registers the guildMemberAdd event on the client.
- * Sends a welcome message with an embed and a link to the Psybot Live channel.
+ * Registers guildMemberAdd event to send styled welcome greetings.
  * @param {import('discord.js').Client} client
  */
 function register(client) {
@@ -17,19 +16,22 @@ function register(client) {
         .setColor('#57F287');
 
       const channelButton = new ButtonBuilder()
-        .setLabel('Psybot Live channel')
+        .setLabel('Psybot Live Channel')
         .setStyle(ButtonStyle.Link)
         .setURL(channelUrl);
 
-      const welcomeChannel = await member.guild.channels.fetch('1445406874231898153').catch(() => null);
+      const welcomeMessage = {
+        content: `Welcome to Psybot Gaming, ${member.user}!`,
+        embeds: [welcomeEmbed],
+        components: [new ActionRowBuilder().addComponents(channelButton)],
+      };
+
+      const welcomeChannelId = process.env.WELCOME_CHANNEL_ID || '1445406874231898153';
+      const welcomeChannel = await member.guild.channels.fetch(welcomeChannelId).catch(() => null);
       if (welcomeChannel) {
-        await welcomeChannel.send({
-          content: `Welcome to Psybot Gaming, ${member.user}!`,
-          embeds: [welcomeEmbed],
-          components: [new ActionRowBuilder().addComponents(channelButton)],
-        });
+        await welcomeChannel.send(welcomeMessage);
       } else {
-        console.warn('Welcome channel 1445406874231898153 not found.');
+        console.warn(`Welcome channel ${welcomeChannelId} not found.`);
       }
     } catch (err) {
       console.error(`Could not send welcome message for ${member.user.tag}:`, err.message);

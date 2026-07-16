@@ -1,274 +1,207 @@
 'use strict';
 
-const {
-  ChannelType, PermissionFlagsBits,
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
-} = require('discord.js');
+const { ChannelType, EmbedBuilder } = require('discord.js');
+const vcDatabase = require('../utils/vcDatabase');
+const { generateVcPanel } = require('../utils/vcPanelGenerator');
 const { getLogConfig } = require('../utils/logConfig');
 
 /**
- * Shared in-memory Map for tracking temporary VCs and voice join times.
- * Exported so that other modules can access it if needed.
- * Keys:
- *   - `"voice_<userId>"` → { joinTime: number }    (voice XP tracking)
- *   - `"<userId>"`       → { vcId: string, createdAt: number }  (temp VC)
- */
-const tempVCs = new Map();
-
-/**
- * Registers voiceStateUpdate on the client.
- * Handles:
- *   - Mute/deafen state logging
- *   - Voice join / leave / move logging
- *   - Custom welcome message when someone joins a temp VC
- *   - Auto-create temp VC when joining the designated "create" channel
- *   - Auto-delete temp VC when the owner leaves or switches
+ * Registers the voiceStateUpdate event handler to support dynamic "Join to Create" channels,
+ * voice state loggers, and automatic Custom VC Panel operations.
  * @param {import('discord.js').Client} client
  */
 function register(client) {
+  const targetChannelId = process.env.JOIN_TO_CREATE_CHANNEL_ID || '1505260263924961330';
+
   client.on('voiceStateUpdate', async (oldState, newState) => {
-    const createVCChannelId = process.env.CREATE_VC_CHANNEL_ID;
-    const vcCategoryId      = process.env.VC_CATEGORY_ID;
-
-    // ── Mute / Deafen state logger ─────────────────────────────────────────
     try {
-      const cfg = getLogConfig();
-      const modLogChannelId = cfg.muteLog || '1505909671918043258';
-      const modLogChannel   = newState.guild.channels.cache.get(modLogChannelId);
+      const member = newState.member;
+      if (!member) return;
 
-      if (modLogChannel) {
-        const embed = new EmbedBuilder().setTimestamp();
-        let action = null;
-        let color  = '#f1c40f';
+      // ── Track voice time stats ─────────────────────────────────────────────
+      try {
+        const { trackVoiceJoin, trackVoiceLeave } = require('../modules/userStats');
+        const guildId = (newState.guild || oldState.guild)?.id;
+        const userId  = member.id;
+        // User joined a channel
+        if (!oldState.channelId && newState.channelId) {
+          trackVoiceJoin(guildId, userId, newState.channelId);
+        }
+        // User left a channel
+        if (oldState.channelId && !newState.channelId) {
+          trackVoiceLeave(guildId, userId, oldState.channelId);
+        }
+        // User moved channels — close old, open new
+        if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
+          trackVoiceLeave(guildId, userId, oldState.channelId);
+          trackVoiceJoin(guildId, userId, newState.channelId);
+        }
+      } catch (err) {
+        console.error('[UserStats] Failed to track voice state:', err.message);
+      }
 
-        if      (!oldState.serverMute && newState.serverMute)  { action = '🎙️ **Server Muted**';      color = '#e74c3c'; }
-        else if (oldState.serverMute  && !newState.serverMute) { action = '🎙️ **Server Unmuted**';    color = '#2ecc71'; }
-        else if (!oldState.serverDeaf && newState.serverDeaf)  { action = '🎧 **Server Deafened**';   color = '#e74c3c'; }
-        else if (oldState.serverDeaf  && !newState.serverDeaf) { action = '🎧 **Server Undeafened**'; color = '#2ecc71'; }
-        else if (!oldState.selfMute   && newState.selfMute)    { action = '🎙️ **Muted (Self)**';      color = '#e67e22'; }
-        else if (oldState.selfMute    && !newState.selfMute)   { action = '🎙️ **Unmuted (Self)**';    color = '#2ecc71'; }
-        else if (!oldState.selfDeaf   && newState.selfDeaf)    { action = '🎧 **Deafened (Self)**';   color = '#e67e22'; }
-        else if (oldState.selfDeaf    && !newState.selfDeaf)   { action = '🎧 **Undeafened (Self)**'; color = '#2ecc71'; }
+      try {
+        const cfg = getLogConfig();
+        const modLogChannelId = cfg.muteLog || '1512013682002104340';
+        const modLogChannel   = newState.guild.channels.cache.get(modLogChannelId);
 
-        if (action) {
-          const channelMention = newState.channel
-            ? `<#${newState.channel.id}> ( \`${newState.channel.name}\` )`
-            : '`Not in a voice channel`';
-          embed.setColor(color).setDescription(
-            `${action}\n\n` +
-            `**User:** ${newState.member.user} ( @${newState.member.user.username} )\n` +
-            `**Channel:** ${channelMention}\n` +
-            `**Time:** <t:${Math.floor(Date.now() / 1000)}:R>`
-          );
-          await modLogChannel.send({ embeds: [embed] });
+        if (modLogChannel) {
+          const embed = new EmbedBuilder().setTimestamp();
+          let title = null;
+          let color = '#f1c40f';
+
+          if      (!oldState.serverMute && newState.serverMute)  { title = '🎙️ Server Mute: Enabled';  color = '#ff3333'; }
+          else if (oldState.serverMute  && !newState.serverMute) { title = '🎙️ Server Mute: Disabled'; color = '#00ff66'; }
+          else if (!oldState.serverDeaf && newState.serverDeaf)  { title = '🎧 Server Deafen: Enabled';  color = '#ff3333'; }
+          else if (oldState.serverDeaf  && !newState.serverDeaf) { title = '🎧 Server Deafen: Disabled'; color = '#00ff66'; }
+          else if (!oldState.selfMute   && newState.selfMute)    { title = '🎙️ Voice Mute: Enabled';    color = '#ff6600'; }
+          else if (oldState.selfMute    && !newState.selfMute)   { title = '🎙️ Voice Mute: Disabled';   color = '#00ff66'; }
+          else if (!oldState.selfDeaf   && newState.selfDeaf)    { title = '🎧 Voice Deafen: Enabled';  color = '#ff6600'; }
+          else if (oldState.selfDeaf    && !newState.selfDeaf)   { title = '🎧 Voice Deafen: Disabled'; color = '#00ff66'; }
+
+          if (title) {
+            const channelMention = newState.channel
+              ? `<#${newState.channel.id}>\n\`${newState.channel.name}\``
+              : '`Not in a VC`';
+
+            embed
+              .setTitle(title)
+              .setColor(color)
+              .setThumbnail(newState.member.user.displayAvatarURL({ forceStatic: true }))
+              .addFields(
+                { name: '👤 Member', value: `${newState.member.user}\n\`${newState.member.user.username}\``, inline: true },
+                { name: '🔊 Channel', value: channelMention, inline: true },
+                { name: '🕒 Occurred', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+              );
+
+            await modLogChannel.send({ embeds: [embed] }).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.error('Failed to send voice state moderation log:', err);
+      }
+
+      // ── Voice join / leave / move logger ────────────────────────────────────
+      if (newState.channelId && oldState.channelId !== newState.channelId) {
+        try {
+          const cfgV = getLogConfig();
+          const voiceLogChannel = newState.guild.channels.cache.get(cfgV.voiceLog || '1512013680987078696');
+          if (voiceLogChannel) {
+            const embed = new EmbedBuilder().setTimestamp();
+            if (!oldState.channelId) {
+              embed
+                .setTitle('📥 Voice Join')
+                .setColor('#00ff66')
+                .setThumbnail(newState.member.user.displayAvatarURL({ forceStatic: true }))
+                .addFields(
+                  { name: '👤 Member', value: `${newState.member.user}\n\`${newState.member.user.username}\``, inline: true },
+                  { name: '🔊 Channel', value: `<#${newState.channel.id}>\n\`${newState.channel.name}\``, inline: true },
+                  { name: '🕒 Occurred', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+                );
+            } else {
+              embed
+                .setTitle('🔀 Voice Channel Transfer')
+                .setColor('#0099ff')
+                .setThumbnail(newState.member.user.displayAvatarURL({ forceStatic: true }))
+                .addFields(
+                  { name: '👤 Member', value: `${newState.member.user}\n\`${newState.member.user.username}\``, inline: true },
+                  { name: '📥 From / To', value: `From: <#${oldState.channelId}>\nTo: <#${newState.channelId}>`, inline: true },
+                  { name: '🕒 Occurred', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+                );
+            }
+            await voiceLogChannel.send({ embeds: [embed] }).catch(() => {});
+          }
+        } catch (err) {
+          console.error('Failed to send voice channel join log:', err);
+        }
+      } else if (oldState.channelId && !newState.channelId) {
+        try {
+          const cfgLeave = getLogConfig();
+          const voiceLogChannel = oldState.guild.channels.cache.get(cfgLeave.voiceLog || '1512013680987078696');
+          if (voiceLogChannel) {
+            const embed = new EmbedBuilder()
+              .setTitle('📤 Voice Leave')
+              .setColor('#ff3333')
+              .setTimestamp()
+              .setThumbnail(oldState.member.user.displayAvatarURL({ forceStatic: true }))
+              .addFields(
+                { name: '👤 Member', value: `${oldState.member.user}\n\`${oldState.member.user.username}\``, inline: true },
+                { name: '🔊 Channel', value: `<#${oldState.channel.id}>\n\`${oldState.channel.name}\``, inline: true },
+                { name: '🕒 Occurred', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+              );
+            await voiceLogChannel.send({ embeds: [embed] }).catch(() => {});
+          }
+        } catch (err) {
+          console.error('Failed to send voice channel leave log:', err);
+        }
+      }
+
+      // 1. User joins the target "Join to Create" channel
+      if (newState.channelId === targetChannelId) {
+        const parentCategory = newState.channel.parent;
+        
+        console.log(`[Join-To-Create] ${member.user.tag} joined the creator channel.`);
+
+        // Create a temporary voice channel
+        const tempChannel = await newState.guild.channels.create({
+          name: `🎙️│${member.displayName}`,
+          type: ChannelType.GuildVoice,
+          parent: parentCategory ? parentCategory.id : null,
+          permissionOverwrites: [
+            {
+              id: member.id,
+              allow: ['ManageChannels', 'MuteMembers', 'DeafenMembers', 'MoveMembers'],
+            }
+          ]
+        });
+
+        // Save target VC to local database
+        vcDatabase.saveVc(tempChannel.id, {
+          ownerId: member.id,
+          coOwners: [],
+          isLocked: false,
+          isHidden: false,
+          limit: 0
+        });
+
+        // Generate and send Custom VC Panel inside the new channel's text chat
+        const avatarUrl = client.user.displayAvatarURL({ extension: 'png' });
+        const panelData = generateVcPanel(member.id, [], 0, false, false, avatarUrl);
+        const panelMessage = await tempChannel.send({
+          content: `${member}, welcome to your custom voice channel!`,
+          embeds: panelData.embeds,
+          components: panelData.components
+        });
+
+        // Update database with panel message ID
+        vcDatabase.saveVc(tempChannel.id, { panelMessageId: panelMessage.id });
+
+        // Move the member to the new temporary channel
+        await member.voice.setChannel(tempChannel);
+        console.log(`[Join-To-Create] Created temporary channel: ${tempChannel.name} (ID: ${tempChannel.id})`);
+      }
+
+      // 2. User leaves or moves from a channel (cleanup empty temporary channels)
+      if (oldState.channelId && oldState.channelId !== newState.channelId) {
+        const oldChannel = oldState.channel;
+        
+        // Check if this channel exists in our database
+        const vcRecord = vcDatabase.getVc(oldState.channelId);
+        if (vcRecord || (oldChannel && oldChannel.name.startsWith('🎙️│'))) {
+          // Fetch members to ensure accuracy
+          if (oldChannel && oldChannel.members.size === 0) {
+            console.log(`[Join-To-Create] Cleaning up empty temporary voice channel: ${oldChannel.name} (${oldChannel.id})`);
+            vcDatabase.deleteVc(oldChannel.id);
+            await oldChannel.delete().catch(err => {
+              console.error(`[Join-To-Create] Failed to delete empty channel ${oldChannel.id}:`, err.message);
+            });
+          }
         }
       }
     } catch (err) {
-      console.error('Failed to send voice state moderation log:', err);
-    }
-
-    // ── User joined or moved to a channel ────────────────────────────────────
-    if (newState.channel && oldState.channelId !== newState.channelId) {
-      const userId = newState.member.user.id;
-
-      // Voice XP join tracking
-      if (!tempVCs.has(`voice_${userId}`)) {
-        tempVCs.set(`voice_${userId}`, { joinTime: Date.now() });
-      }
-
-      // Voice join / move logger
-      try {
-        const cfgV = getLogConfig();
-        const voiceLogChannel = newState.guild.channels.cache.get(cfgV.voiceLog || '1505907978992353280');
-        if (voiceLogChannel) {
-          const embed = new EmbedBuilder().setTimestamp();
-          if (!oldState.channelId) {
-            embed.setColor('#2ecc71').setDescription(
-              `📥 **Voice Join**\n\n` +
-              `**User:** ${newState.member.user} ( @${newState.member.user.username} )\n` +
-              `**Channel:** <#${newState.channel.id}> ( \`${newState.channel.name}\` )\n` +
-              `**Time:** <t:${Math.floor(Date.now() / 1000)}:R>`
-            );
-          } else {
-            embed.setColor('#3498db').setDescription(
-              `🔀 **Voice Move**\n\n` +
-              `**User:** ${newState.member.user} ( @${newState.member.user.username} )\n` +
-              `**Old Channel:** <#${oldState.channelId}>\n` +
-              `**New Channel:** <#${newState.channelId}>\n` +
-              `**Time:** <t:${Math.floor(Date.now() / 1000)}:R>`
-            );
-          }
-          await voiceLogChannel.send({ embeds: [embed] });
-        }
-      } catch (err) {
-        console.error('Failed to send voice channel join log:', err);
-      }
-
-      // Welcome message when joining another user's temp VC
-      if (createVCChannelId && newState.channel.id !== createVCChannelId) {
-        let customVCOwnerId = null;
-        for (const [uid, data] of tempVCs.entries()) {
-          if (uid.startsWith('voice_')) continue;
-          if (data && data.vcId === newState.channel.id) { customVCOwnerId = uid; break; }
-        }
-        if (customVCOwnerId && customVCOwnerId !== newState.member.user.id) {
-          await newState.channel.send(`👋 Welcome ${newState.member}! You have joined <@${customVCOwnerId}>'s room.`).catch(err => {
-            console.error('Failed to send welcome message to custom VC text chat:', err);
-          });
-        }
-      }
-
-      // Auto-create temp VC when joining the designated "create" channel
-      if (createVCChannelId && newState.channel.id === createVCChannelId) {
-        try {
-          const guild = newState.guild;
-          const user  = newState.member.user;
-          const uid   = user.id;
-
-          // ── BUG FIX: delete any pre-existing temp VC BEFORE creating the new
-          // one. Without this, tempVCs gets overwritten with the new VC's ID
-          // before the "moved between channels" block below can read the OLD
-          // ID — so the old channel was never deleted and became a ghost VC.
-          const existingVCData = tempVCs.get(uid);
-          if (existingVCData) {
-            const oldVC = guild.channels.cache.get(existingVCData.vcId);
-            if (oldVC) {
-              await oldVC.delete('Owner rejoined create channel — replacing with new VC').catch(err =>
-                console.error('Failed to delete old temp VC on rejoin:', err)
-              );
-              console.log(`🗑️ Deleted old temp VC for ${user.username} (rejoin cleanup)`);
-            }
-            tempVCs.delete(uid);
-          }
-
-          const tempVC = await guild.channels.create({
-            name: `🎙️ ${user.username}`,
-            type: ChannelType.GuildVoice,
-            parent: vcCategoryId,
-            permissionOverwrites: [
-              { id: guild.id, deny: [PermissionFlagsBits.Connect] },
-              { id: uid, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect, PermissionFlagsBits.ManageChannels] },
-            ],
-          });
-
-          await newState.setChannel(tempVC);
-          tempVCs.set(uid, { vcId: tempVC.id, createdAt: Date.now() });
-
-          const embed = new EmbedBuilder()
-            .setTitle('🎙️ Voice Channel Control Center')
-            .setDescription(
-              'Welcome to your dynamic voice channel dashboard! Use the buttons below or ' +
-              'the quick commands to control access, manage members, and configure your room.\n\n' +
-              `🔴 **Room Owner:** <@${uid}>\n` +
-              `⚫ **Co-Owners:** *None*\n` +
-              `🔒 **Status:** Locked (by default)\n` +
-              `🚨 **Limit:** \`Unlimited\``
-            )
-            .setColor('#ff3333')
-            .addFields({
-              name: '🖤 Control Commands',
-              value:
-                '▪️ Use the **Lock** button to lock/unlock your channel\n' +
-                '▪️ Use the **Co-own** button to promote a user\n' +
-                '▪️ Use the **Allow Access** button to grant entry\n' +
-                '▪️ Use the **Block User** button to block someone',
-              inline: false,
-            })
-            .setFooter({ text: 'Psybot Room Manager | Red & Black Edition', iconURL: client.user.displayAvatarURL() })
-            .setTimestamp();
-
-          const row1 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`vc_edit_${uid}`).setLabel('Edit Room').setStyle(ButtonStyle.Secondary).setEmoji('⚙️'),
-            new ButtonBuilder().setCustomId(`vc_coown_${uid}`).setLabel('Co-own').setStyle(ButtonStyle.Secondary).setEmoji('👥'),
-            new ButtonBuilder().setCustomId(`vc_lock_${uid}`).setLabel('Lock').setStyle(ButtonStyle.Danger).setEmoji('🔒')
-          );
-          const row2 = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`vc_kick_${uid}`).setLabel('Kick User').setStyle(ButtonStyle.Danger).setEmoji('👢'),
-            new ButtonBuilder().setCustomId(`vc_access_${uid}`).setLabel('Allow Access').setStyle(ButtonStyle.Secondary).setEmoji('🔓'),
-            new ButtonBuilder().setCustomId(`vc_block_${uid}`).setLabel('Block User').setStyle(ButtonStyle.Danger).setEmoji('⛔')
-          );
-
-          if (typeof tempVC.send === 'function') {
-            await tempVC.send({ content: `${newState.member}`, embeds: [embed], components: [row1, row2] });
-          }
-          console.log(`✅ Created temp VC for ${user.username}: ${tempVC.name}`);
-        } catch (err) {
-          console.error('Error creating temp VC:', err);
-        }
-      }
-    }
-
-    // ── User left a voice channel ─────────────────────────────────────────────
-    if (oldState.channel && !newState.channel) {
-      // Voice leave logger
-      try {
-        const cfgLeave = getLogConfig();
-        const voiceLogChannel = oldState.guild.channels.cache.get(cfgLeave.voiceLog || '1505907978992353280');
-        if (voiceLogChannel) {
-          const embed = new EmbedBuilder()
-            .setColor('#e74c3c')
-            .setTimestamp()
-            .setDescription(
-              `📤 **Voice Leave**\n\n` +
-              `**User:** ${oldState.member.user} ( @${oldState.member.user.username} )\n` +
-              `**Channel:** <#${oldState.channel.id}> ( \`${oldState.channel.name}\` )\n` +
-              `**Time:** <t:${Math.floor(Date.now() / 1000)}:R>`
-            );
-          await voiceLogChannel.send({ embeds: [embed] });
-        }
-      } catch (err) {
-        console.error('Failed to send voice channel leave log:', err);
-      }
-
-      try {
-        const userId = newState.member.user.id;
-
-        // Remove voice XP tracking
-        if (tempVCs.has(`voice_${userId}`)) {
-          tempVCs.delete(`voice_${userId}`);
-        }
-
-        // Delete temp VC if the owner left the server entirely
-        const tempVCData = tempVCs.get(userId);
-        if (tempVCData) {
-          const vcChannel = oldState.guild.channels.cache.get(tempVCData.vcId);
-          if (vcChannel) {
-            await vcChannel.delete().catch(err => console.error('Failed to delete temp VC on leave:', err));
-            console.log('🗑️ Deleted temp VC because owner left');
-          }
-          tempVCs.delete(userId);
-        }
-      } catch (err) {
-        console.error('Error cleaning up temp VC:', err);
-      }
-    }
-
-    // ── User moved between channels (non-create-channel moves) ───────────────
-    // NOTE: moves back to the create channel are already handled above.
-    // This block handles the case where the owner moves to a *different* non-
-    // create channel (e.g. joins someone else's VC) and their old temp VC
-    // should be deleted.
-    if (oldState.channel && newState.channel && oldState.channel !== newState.channel) {
-      // Skip if they moved INTO the create channel — already handled above
-      if (newState.channel.id === createVCChannelId) return;
-
-      try {
-        const userId     = newState.member.user.id;
-        const tempVCData = tempVCs.get(userId);
-
-        if (tempVCData && oldState.channel.id === tempVCData.vcId) {
-          const vcChannel = oldState.guild.channels.cache.get(tempVCData.vcId);
-          if (vcChannel) {
-            await vcChannel.delete().catch(err => console.error('Failed to delete temp VC on switch:', err));
-            console.log('🗑️ Deleted temp VC because owner moved to another channel');
-          }
-          tempVCs.delete(userId);
-        }
-      } catch (err) {
-        console.error('Error handling VC switch:', err);
-      }
+      console.error('[Join-To-Create] Error in voiceStateUpdate handler:', err);
     }
   });
 }
 
-module.exports = { register, tempVCs };
+module.exports = { register };

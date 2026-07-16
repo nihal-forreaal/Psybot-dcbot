@@ -4,130 +4,205 @@ require('dotenv').config();
 const dns = require('dns');
 if (dns.setDefaultResultOrder) dns.setDefaultResultOrder('ipv4first');
 
-const fs   = require('fs');
+const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Collection, Partials, ChannelType } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
 
-const { slashCommands }         = require('./modules/slashCommands');
-const { logConfigPath }         = require('./utils/logConfig');
-const { writeJsonFile }         = require('./utils/jsonUtils');
+// ── Configuration ────────────────────────────────────────────────────────────
+const prefix = process.env.PREFIX || '!';
 
-// ── Event handlers ────────────────────────────────────────────────────────────
-const guildMemberAddHandler    = require('./handlers/guildMemberAdd');
-const guildMemberUpdateHandler = require('./handlers/guildMemberUpdate');
-const messageCreateHandler     = require('./handlers/messageCreate');
-const voiceStateUpdateHandler  = require('./handlers/voiceStateUpdate');
-const interactionCreateHandler = require('./handlers/interactionCreate');
-
-// ── Config ────────────────────────────────────────────────────────────────────
-const prefix             = process.env.PREFIX || '!';
-const LOG_CATEGORY_ID    = '1505885380023418890';
-const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '1505164182767800411';
-
-// ── Discord client ────────────────────────────────────────────────────────────
+// ── Discord Client Initialization ─────────────────────────────────────────────
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.GuildMembers,
   ],
-  partials: [Partials.Channel, Partials.Message, Partials.Reaction, Partials.GuildMember],
+  partials: [Partials.Channel, Partials.Message, Partials.Reaction],
 });
 
-// ── Load prefix commands ──────────────────────────────────────────────────────
+// ── Dynamic Command Loader ───────────────────────────────────────────────────
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, 'commands');
 if (fs.existsSync(commandsPath)) {
-  for (const file of fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'))) {
+  const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+  for (const file of commandFiles) {
     const command = require(path.join(commandsPath, file));
-    if (command?.name) client.commands.set(command.name, command);
+    if (command?.name) {
+      client.commands.set(command.name, command);
+      if (command.aliases && Array.isArray(command.aliases)) {
+        for (const alias of command.aliases) {
+          client.commands.set(alias, command);
+        }
+      }
+      console.log(`[Commands] Loaded prefix command: ${command.name} (aliases: ${command.aliases ? command.aliases.join(', ') : 'none'})`);
+    }
   }
 }
 
-// ── Server stats updater (stub — implement or import your own logic) ──────────
-async function updateServerStats() {
-  // Placeholder: add server-stats channel update logic here if needed.
-}
+// ── Event Registration ────────────────────────────────────────────────────────
+const messageCreateHandler = require('./handlers/messageCreate');
+const interactionCreateHandler = require('./handlers/interactionCreate');
+const voiceStateUpdateHandler = require('./handlers/voiceStateUpdate');
+const guildMemberAddHandler = require('./handlers/guildMemberAdd');
+const guildMemberUpdateHandler = require('./handlers/guildMemberUpdate');
 
-// ── Register event handlers ───────────────────────────────────────────────────
+messageCreateHandler.register(client, client.commands, prefix);
+interactionCreateHandler.register(client);
+voiceStateUpdateHandler.register(client);
 guildMemberAddHandler.register(client);
 guildMemberUpdateHandler.register(client);
-messageCreateHandler.register(client, client.commands, updateServerStats, prefix);
-voiceStateUpdateHandler.register(client);
-interactionCreateHandler.register(client);
 
-// ── Ready event ───────────────────────────────────────────────────────────────
+// ── Ready Event ───────────────────────────────────────────────────────────────
 client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
-
-  // Register slash commands globally (clears per-guild duplicates)
-  try {
-    await client.application.commands.set(slashCommands);
-    console.log('Successfully registered global slash commands!');
-    for (const guild of client.guilds.cache.values()) {
-      await guild.commands.set([]);
-      console.log(`Cleared guild-specific commands for: ${guild.name}`);
+  
+  const commandsToRegister = [
+    {
+      name: 'youtube',
+      description: 'Gets the official Psybot YouTube channel link.'
+    },
+    {
+      name: 'log',
+      description: 'Query audit logs inside a specific logging channel.',
+      options: [
+        {
+          name: 'voice',
+          description: 'Query voice channel join, leave and move history.',
+          type: 1,
+          options: [
+            { name: 'start', description: 'Start time (e.g. 10am, 2:30pm)', type: 3, required: true },
+            { name: 'end', description: 'End time (e.g. 11am, 3pm)', type: 3, required: true },
+            { name: 'date', description: 'Date in YYYY-MM-DD format (default: today)', type: 3, required: false },
+            { name: 'page', description: 'Page number', type: 4, required: false }
+          ]
+        },
+        {
+          name: 'messages',
+          description: 'Query deleted and edited message history.',
+          type: 1,
+          options: [
+            { name: 'start', description: 'Start time (e.g. 10am, 2:30pm)', type: 3, required: true },
+            { name: 'end', description: 'End time (e.g. 11am, 3pm)', type: 3, required: true },
+            { name: 'date', description: 'Date in YYYY-MM-DD format (default: today)', type: 3, required: false },
+            { name: 'page', description: 'Page number', type: 4, required: false }
+          ]
+        },
+        {
+          name: 'mute',
+          description: 'Query server or self mute and deafen history.',
+          type: 1,
+          options: [
+            { name: 'start', description: 'Start time (e.g. 10am, 2:30pm)', type: 3, required: true },
+            { name: 'end', description: 'End time (e.g. 11am, 3pm)', type: 3, required: true },
+            { name: 'date', description: 'Date in YYYY-MM-DD format (default: today)', type: 3, required: false },
+            { name: 'page', description: 'Page number', type: 4, required: false }
+          ]
+        },
+        {
+          name: 'role',
+          description: 'Query role changes history.',
+          type: 1,
+          options: [
+            { name: 'start', description: 'Start time (e.g. 10am, 2:30pm)', type: 3, required: true },
+            { name: 'end', description: 'End time (e.g. 11am, 3pm)', type: 3, required: true },
+            { name: 'date', description: 'Date in YYYY-MM-DD format (default: today)', type: 3, required: false },
+            { name: 'page', description: 'Page number', type: 4, required: false }
+          ]
+        }
+      ]
+    },
+    {
+      name: 'stats',
+      description: 'Shows server statistics',
     }
+  ];
+
+  // Register global slash commands (including /stats)
+  try {
+    await client.application.commands.set(commandsToRegister);
+    console.log('[Slash Commands] Successfully registered global commands (youtube, log, stats).');
   } catch (err) {
-    console.error('Error deploying slash commands:', err);
+    console.error('[Slash Commands] Error registering global commands:', err);
   }
 
-  // Auto-setup log channels if not yet configured
-  const { getLogConfig } = require('./utils/logConfig');
-  const logCfg = getLogConfig();
-  const allLogsExist = logCfg.messageLog && logCfg.voiceLog && logCfg.muteLog && logCfg.roleLog;
-
-  if (!allLogsExist) {
+  // Register guild-specific commands for immediate availability
+  for (const guild of client.guilds.cache.values()) {
     try {
-      for (const guild of client.guilds.cache.values()) {
-        const category = guild.channels.cache.get(LOG_CATEGORY_ID);
-        if (!category) continue;
-
-        await category.setName('📋 Server Logs').catch(() => {});
-
-        // Delete any old channels in the log category
-        const existing = guild.channels.cache.filter(c => c.parentId === LOG_CATEGORY_ID);
-        for (const [, ch] of existing) await ch.delete('Auto log setup: rebuilding').catch(() => {});
-
-        const everyoneId = guild.roles.everyone.id;
-        const adminPerms = [
-          { id: everyoneId,         deny:  ['ViewChannel'] },
-          { id: guild.members.me.id, allow: ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'] },
-        ];
-
-        const msgLog   = await guild.channels.create({ name: '📝│message-log',  type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-        const voiceLog = await guild.channels.create({ name: '🎙️│voice-log',    type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-        const muteLog  = await guild.channels.create({ name: '🔇│mute-log',     type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-        const roleLog  = await guild.channels.create({ name: '🎭│role-log',     type: ChannelType.GuildText, parent: LOG_CATEGORY_ID, permissionOverwrites: adminPerms });
-
-        writeJsonFile(logConfigPath, { messageLog: msgLog.id, voiceLog: voiceLog.id, muteLog: muteLog.id, roleLog: roleLog.id });
-        console.log(`[✅ Log Setup] Created log channels in ${guild.name}`);
-        break;
-      }
+      await guild.commands.set(commandsToRegister);
+      console.log(`[Slash Commands] Registered /youtube and /log for guild: ${guild.name}`);
     } catch (err) {
-      console.error('[Log Setup] Failed to auto-create log channels:', err.message);
+      console.warn(`[Slash Commands] Could not register commands for guild ${guild.name}:`, err.message);
     }
-  } else {
-    console.log('[✅ Log Setup] Log channels already configured, skipping auto-setup.');
+  }
+
+  // Rename LOG category and its channels to matching premium gaming style names
+  try {
+    const categoryId = '1505885380023418890';
+    const category = await client.channels.fetch(categoryId).catch(() => null);
+    if (category) {
+      // 1. Rename category itself
+      if (category.name !== '╔ 📂 𝐒𝐄𝐑𝐕𝐄𝐑 𝐋𝐎𝐆𝐒 📂 ╗') {
+        await category.setName('╔ 📂 𝐒𝐄𝐑𝐕𝐄𝐑 𝐋𝐎𝐆𝐒 📂 ╗').catch(() => {});
+        console.log('[Channels] Successfully renamed LOG category to ╔ 📂 𝐒𝐄𝐑𝐕𝐄𝐑 𝐋𝐎𝐆𝐒 📂 ╗');
+      }
+
+      // 2. Fetch and rename channels inside
+      const channels = category.guild.channels.cache.filter(c => c.parentId === categoryId);
+      
+      const channelMappings = {
+        '1512013680018067537': '📝│message-logs',
+        '1512013682635444285': '🎭│role-logs',
+        '1512013682002104340': '🔇│moderation-logs',
+        '1512013680987078696': '🎙️│voice-logs'
+      };
+
+      for (const [id, targetName] of Object.entries(channelMappings)) {
+        const chan = channels.get(id);
+        if (chan) {
+          if (chan.name !== targetName) {
+            await chan.setName(targetName).catch(() => {});
+            console.log(`[Channels] Successfully renamed channel ${id} to ${targetName}`);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[Channels] Failed to rename LOG category or channels:', err.message);
+  }
+
+  // Delete the old ticket-logs channel if it exists
+  try {
+    const oldLogChannel = await client.channels.fetch('1527448126477303848').catch(() => null);
+    if (oldLogChannel) {
+      await oldLogChannel.delete('Cleanup old ticket logs channel').catch(() => {});
+      console.log('[Channels] Successfully deleted old ticket logs channel 1527448126477303848');
+    }
+  } catch (err) {
+    console.warn('[Channels] Old ticket log channel already deleted or not found:', err.message);
+  }
+
+  // Rename forum channel to a premium styled name
+  try {
+    const forumChannel = await client.channels.fetch('1527452447084118127').catch(() => null);
+    if (forumChannel) {
+      if (forumChannel.name !== '📂│ticket-logs') {
+        await forumChannel.setName('📂│ticket-logs').catch(() => {});
+        console.log('[Channels] Successfully renamed forum channel to 📂│ticket-logs');
+      }
+    }
+  } catch (err) {
+    console.error('[Channels] Failed to rename forum channel:', err.message);
   }
 });
 
-// ── Process signal handlers ───────────────────────────────────────────────────
-process.once('SIGINT',  () => process.exit(0));
+// ── Graceful Shutdown ─────────────────────────────────────────────────────────
+process.once('SIGINT', () => process.exit(0));
 process.once('SIGTERM', () => process.exit(0));
-
-// ── Optional YouTube WebSub module ────────────────────────────────────────────
-try {
-  const yt = require('./youtube');
-  yt.init(client).catch(err => console.error('YouTube init error', err));
-} catch (e) {
-  console.warn('youtube module not available:', e.message);
-}
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 client.login(process.env.TOKEN);

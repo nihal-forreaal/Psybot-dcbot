@@ -3,123 +3,72 @@
 const { EmbedBuilder } = require('discord.js');
 const { getLogConfig } = require('../utils/logConfig');
 
-const LOG_CHANNEL_ID = '1505905409003884634'; // Message log (outgoing) channel
-const N_WORD_REGEX   = /n+[i\u00a11\u00ec\u00ed\u00ee\u00ef]+g+a+|n+g+a+|n+i+g+e+r+|n+i+g+g+e+r+/i;
-
 /**
- * Registers the messageCreate, messageDelete, and messageUpdate events.
+ * Registers the messageCreate event to route prefix commands.
  * @param {import('discord.js').Client} client
- * @param {import('discord.js').Collection} commands  The loaded prefix command collection.
- * @param {Function} updateServerStats  Callback to sync stats channels (passed from index.js).
- * @param {string}   prefix             The bot command prefix (default: '!').
+ * @param {import('discord.js').Collection} commands
+ * @param {string} prefix
  */
-function register(client, commands, updateServerStats, prefix = '!') {
-  // ── messageCreate ─────────────────────────────────────────────────────────
+function register(client, commands, prefix = '!') {
   client.on('messageCreate', async message => {
+    // Ignore bots
     if (message.author.bot) return;
 
-    // Word filter — remove slurs and send a 5-second warning
-    const normalizedContent = message.content.toLowerCase().replace(/[\s\-_.]/g, '');
-    if (N_WORD_REGEX.test(normalizedContent) || N_WORD_REGEX.test(message.content)) {
+    // Track message stats for guild users
+    if (message.guild) {
       try {
-        await message.delete();
-        const warn = await message.channel.send(`⚠️ ${message.author}, that word is not allowed here.`);
-        setTimeout(() => warn.delete().catch(() => {}), 5000);
+        const { trackMessage } = require('../modules/userStats');
+        trackMessage(message.guild.id, message.author.id, message.channel.id);
       } catch (err) {
-        console.error('Failed to delete message containing restricted word:', err.message);
-      }
-      return;
-    }
-
-    console.log(`[MESSAGE] ${message.author.tag} (${message.author.id}) in ${message.guild?.name || 'DM'}: "${message.content}"`);
-
-    // React when a specific user is pinged
-    if (message.mentions.users.has('1105072573580062790')) {
-      message.react('1510273361455091752').catch(err => console.error('Failed to react to specific ping:', err));
-    }
-
-    // Random letter generator for a specific channel
-    if (message.channel.id === '1445395976495042641') {
-      const numMatch = message.content.trim().match(/^(\d+)$/);
-      if (numMatch) {
-        const count    = Math.min(parseInt(numMatch[1], 10), 100);
-        const chars    = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        for (let i = 0; i < count; i++) {
-          await message.channel.send(chars.charAt(Math.floor(Math.random() * chars.length))).catch(err => console.error('Failed to send letter:', err));
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-        if (parseInt(numMatch[1], 10) > 100) {
-          await message.channel.send('⚠️ *Count capped at 100 to prevent rate limits.*').catch(() => {});
-        }
-        return;
+        console.error('[UserStats] Failed to track message:', err.message);
       }
     }
 
-    // Log all messages to the log channel (excluding the log channel itself)
-    if (message.guild && message.channel.id !== LOG_CHANNEL_ID) {
+    // Direct message logs or debugging output
+    if (!message.guild) {
+      console.log(`[DM] ${message.author.tag}: ${message.content}`);
+    }
+
+    // Mirror ticket messages to forum thread if applicable
+    if (message.guild && message.channel.name.startsWith('ticket-')) {
       try {
-        const logChannel = client.channels.cache.get(LOG_CHANNEL_ID);
-        if (logChannel) {
-          const embed = new EmbedBuilder()
-            .setColor('#0f8c8c')
-            .setDescription(
-              `**Channel:** <#${message.channel.id}> ( <#${message.channel.id}> )\n` +
-              `**Message ID:** ${message.id}\n` +
-              `**Message author:** ${message.author.tag} ( <@${message.author.id}> )\n` +
-              `**Message created:** <t:${Math.floor(message.createdTimestamp / 1000)}:R>\n\n` +
-              `**Message**\n${message.content || '[No Text Content]'}`
-            )
-            .setTimestamp(message.createdAt);
-
-          const firstAttachment = message.attachments.first();
-          if (firstAttachment?.contentType?.startsWith('image/')) {
-            embed.setImage(firstAttachment.url);
+        const { readJsonFile } = require('../utils/jsonUtils');
+        const path = require('path');
+        const ticketsPath = path.join(__dirname, '..', 'tickets.json');
+        const tickets = readJsonFile(ticketsPath, {});
+        const ticketData = Object.values(tickets).find(t => t.channelId === message.channel.id);
+        
+        if (ticketData && ticketData.forumThreadId) {
+          const thread = await message.guild.channels.fetch(ticketData.forumThreadId).catch(() => null);
+          if (thread) {
+            const files = [...message.attachments.values()];
+            const content = message.content
+              ? `👤 **${message.author.username}** (\`${message.author.id}\`): ${message.content}`
+              : `👤 **${message.author.username}** (\`${message.author.id}\`) sent an attachment:`;
+            await thread.send({ content, files }).catch(err => console.error('Failed to forward ticket message:', err.message));
           }
-          await logChannel.send({ embeds: [embed] });
         }
       } catch (err) {
-        console.error('Failed to log message:', err);
+        console.error('Error forwarding ticket message to forum:', err.message);
       }
     }
-
-    // ── Auto-responses ───────────────────────────────────────────────────────
-    const normalized = message.content.trim().toLowerCase();
-    const plain      = normalized.replace(/[^\w\s]/g, '').replace(/\s+/g, ' ');
-
-    if (plain === 'who is the king') return message.channel.send('zypher');
-
-    if (normalized === '!syncstats') {
-      if (!message.member.permissions.has('Administrator')) return;
-      await message.reply('Syncing stats now...');
-      await updateServerStats();
-      return message.channel.send('✅ Stats synced successfully!');
-    }
-
-    const fakeMatches = normalized.match(/\bfake\b/g) || [];
-    if (fakeMatches.length > 0) {
-      for (let i = 0; i < fakeMatches.length; i++) {
-        await message.channel.send('ur are the fake one !!');
-      }
-      return;
-    }
-
-    if (/\b(yt|youtube)\b/.test(normalized)) {
-      return message.channel.send('Search psybotlive 🤫');
-    }
-
-    // ── Prefix command router ─────────────────────────────────────────────────
     if (!message.content.startsWith(prefix)) return;
 
-    const args        = message.content.slice(prefix.length).trim().split(/\s+/);
+    const args = message.content.slice(prefix.length).trim().split(/\s+/);
     const commandName = args.shift().toLowerCase();
-    const command     = commands.get(commandName);
+    const command = commands.get(commandName);
+
     if (!command) return;
 
     try {
       await command.execute(message, args);
     } catch (err) {
-      console.error(err);
-      message.reply('There was an error executing that command.');
+      console.error(`Error executing prefix command: ${commandName}`, err);
+      try {
+        await message.reply('❌ There was an error trying to execute that command.');
+      } catch (replyErr) {
+        console.error('Failed to send error reply:', replyErr.message);
+      }
     }
   });
 
@@ -136,13 +85,13 @@ function register(client, commands, updateServerStats, prefix = '!') {
 
     const embed = new EmbedBuilder()
       .setTitle('🗑️ Message Deleted')
-      .setColor('#e74c3c')
-      .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
-      .setDescription(
-        `**Author:** ${message.author} (\`${message.author.tag}\`)\n` +
-        `**Channel:** <#${message.channel.id}>\n` +
-        `**Message ID:** \`${message.id}\`\n\n` +
-        `**Content:**\n${message.content || '*No text content (possibly an embed or attachment)*'}`
+      .setColor('#ff3333')
+      .setThumbnail(message.author.displayAvatarURL({ forceStatic: true }))
+      .addFields(
+        { name: '👤 Author', value: `${message.author}\n\`${message.author.tag}\``, inline: true },
+        { name: '💬 Channel', value: `<#${message.channel.id}>\n\`#${message.channel.name}\``, inline: true },
+        { name: '🕒 Occurred', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+        { name: '📝 Content', value: `\`\`\`${message.content || '(No text content / attachment)'}\`\`\``, inline: false }
       )
       .setTimestamp();
     channel.send({ embeds: [embed] }).catch(() => {});
@@ -160,21 +109,20 @@ function register(client, commands, updateServerStats, prefix = '!') {
     const channel = newMessage.guild?.channels.cache.get(cfg.messageLog);
     if (!channel) return;
 
-    const oldContent = oldMessage.content ? oldMessage.content.substring(0, 1024) : '*None*';
-    const newContent = newMessage.content ? newMessage.content.substring(0, 1024) : '*None*';
+    const oldContent = oldMessage.content ? oldMessage.content.substring(0, 1000) : '*None*';
+    const newContent = newMessage.content ? newMessage.content.substring(0, 1000) : '*None*';
 
     const embed = new EmbedBuilder()
       .setTitle('✏️ Message Edited')
-      .setColor('#f1c40f')
-      .setThumbnail(newMessage.author.displayAvatarURL({ dynamic: true }))
-      .setDescription(
-        `**Author:** ${newMessage.author} (\`${newMessage.author.tag}\`)\n` +
-        `**Channel:** <#${newMessage.channel.id}>\n` +
-        `[Jump to message](${newMessage.url})`
-      )
+      .setColor('#ffaa00')
+      .setThumbnail(newMessage.author.displayAvatarURL({ forceStatic: true }))
       .addFields(
-        { name: '📝 Before', value: oldContent },
-        { name: '✅ After',  value: newContent }
+        { name: '👤 Author', value: `${newMessage.author}\n\`${newMessage.author.tag}\``, inline: true },
+        { name: '💬 Channel', value: `<#${newMessage.channel.id}>\n\`#${newMessage.channel.name}\``, inline: true },
+        { name: '🕒 Occurred', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
+        { name: '📝 Before', value: `\`\`\`${oldContent}\`\`\``, inline: false },
+        { name: '✅ After', value: `\`\`\`${newContent}\`\`\``, inline: false },
+        { name: '🔗 Reference', value: `[Jump to message](${newMessage.url})`, inline: false }
       )
       .setTimestamp();
     channel.send({ embeds: [embed] }).catch(() => {});

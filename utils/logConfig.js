@@ -13,6 +13,7 @@ const logConfigPath = path.join(__dirname, '..', 'logConfig.json');
  */
 function getLogConfig() {
   try {
+    if (!fs.existsSync(logConfigPath)) return {};
     return JSON.parse(fs.readFileSync(logConfigPath, 'utf8'));
   } catch {
     return {};

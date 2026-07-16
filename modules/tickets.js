@@ -3,15 +3,183 @@
 const path = require('path');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits } = require('discord.js');
 const { readJsonFile, writeJsonFile } = require('../utils/jsonUtils');
-const { parseUserId } = require('../utils/parseUtils');
 
 const ticketsPath = path.join(__dirname, '..', 'tickets.json');
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '1505164182767800411';
 const MOD_ROLE_ID        = '1445305642968551618';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+/**
+ * Generates a plain text transcript of all messages in a channel.
+ * @param {import('discord.js').TextChannel} channel
+ * @returns {Promise<string>}
+ */
+async function generateTranscript(channel) {
+  const messages = [];
+  let lastId = null;
+
+  // Fetch up to 500 messages to cover the full ticket conversation
+  for (let i = 0; i < 5; i++) {
+    const options = { limit: 100 };
+    if (lastId) options.before = lastId;
+
+    const fetched = await channel.messages.fetch(options).catch(() => null);
+    if (!fetched || fetched.size === 0) break;
+
+    messages.push(...fetched.values());
+    lastId = fetched.lastKey();
+    if (fetched.size < 100) break;
+  }
+
+  // Sort messages chronologically
+  messages.reverse();
+
+  let transcript = `TRANSCRIPT FOR TICKET CHANNEL: #${channel.name}\n`;
+  transcript += `Closed At: ${new Date().toISOString()}\n`;
+  transcript += `========================================================================\n\n`;
+
+  for (const msg of messages) {
+    const timestamp = msg.createdAt.toISOString().replace('T', ' ').substring(0, 19);
+    const authorTag = msg.author.tag;
+    const authorId = msg.author.id;
+    let content = msg.content || '';
+
+    // Handle embeds if present
+    if (msg.embeds && msg.embeds.length > 0) {
+      for (const embed of msg.embeds) {
+        const title = embed.title ? `[Embed Title: ${embed.title}]` : '';
+        const desc = embed.description ? `[Embed Desc: ${embed.description}]` : '';
+        content += `\n  ${title} ${desc}`.trim();
+      }
+    }
+
+    // Handle attachments if present
+    if (msg.attachments && msg.attachments.size > 0) {
+      for (const attachment of msg.attachments.values()) {
+        content += `\n  [Attachment: ${attachment.name} - ${attachment.url}]`;
+      }
+    }
+
+    transcript += `[${timestamp}] ${authorTag} (${authorId}): ${content}\n`;
+  }
+
+  return transcript;
+}
+
+/**
+ * Logs ticket activity to the configured log channel.
+ * @param {import('discord.js').Client} client
+ * @param {string} action - 'Created' | 'Claimed' | 'Transferred' | 'Closed' | 'User Added'
+ * @param {object} details - details of the action
+ */
+async function logTicketAction(client, action, details) {
+  try {
+    const logChannelId = process.env.TICKET_LOG_CHANNEL_ID;
+    if (!logChannelId) return;
+
+    const logChannel = await client.channels.fetch(logChannelId).catch(() => null);
+    if (!logChannel) {
+      console.warn(`[Ticket Logs] Log channel ${logChannelId} not found.`);
+      return;
+    }
+
+    let color = '#34495e';
+    if (action === 'Created') color = '#2ecc71';
+    if (action === 'Claimed') color = '#3498db';
+    if (action === 'Transferred') color = '#e67e22';
+    if (action === 'User Added') color = '#9b59b6';
+    if (action === 'Closed') color = '#e74c3c';
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🎫 Ticket Log: ${action}`)
+      .setColor(color)
+      .setTimestamp();
+
+    const fields = [
+      { name: 'Ticket ID', value: `\`${details.ticketId}\``, inline: true },
+      { name: 'Opened By', value: `<@${details.userId}>`, inline: true }
+    ];
+
+    if (details.channelId) {
+      fields.push({ name: 'Channel', value: `<#${details.channelId}>`, inline: true });
+    } else if (details.channelName) {
+      fields.push({ name: 'Channel Name', value: `\`${details.channelName}\``, inline: true });
+    }
+
+    if (details.executor) {
+      fields.push({ name: 'Executor', value: `${details.executor}`, inline: true });
+    }
+
+    if (details.extraInfo) {
+      fields.push({ name: 'Details', value: details.extraInfo, inline: false });
+    }
+
+    embed.addFields(fields);
+
+    const files = [];
+    if (action === 'Closed' && details.channel) {
+      try {
+        const transcriptText = await generateTranscript(details.channel);
+        const buffer = Buffer.from(transcriptText, 'utf-8');
+        const { AttachmentBuilder } = require('discord.js');
+        const attachment = new AttachmentBuilder(buffer, { name: `transcript-${details.channelName || details.channel.name}.txt` });
+        files.push(attachment);
+      } catch (transcriptErr) {
+        console.error('[Ticket Logs] Failed to generate ticket transcript:', transcriptErr.message);
+      }
+    }
+
+    const tickets = readJsonFile(ticketsPath, {});
+    const ticketEntry = tickets[details.ticketId] || Object.values(tickets).find(t => t.ticketId === details.ticketId);
+    const forumThreadId = details.forumThreadId || (ticketEntry ? ticketEntry.forumThreadId : null);
+
+    if (logChannel.type === ChannelType.GuildForum) {
+      if (forumThreadId) {
+        try {
+          const thread = await logChannel.threads.fetch(forumThreadId).catch(() => null);
+          if (thread) {
+            await thread.send({ embeds: [embed], files });
+            if (action === 'Closed') {
+              await thread.setName(`📂│ticket-${details.channelName?.replace('ticket-', '') || 'closed'}`).catch(() => {});
+              await thread.setLocked(true).catch(() => {});
+              await thread.setArchived(true).catch(() => {});
+            }
+            return;
+          }
+        } catch (err) {
+          console.error('[Ticket Logs] Failed to post update to forum thread:', err.message);
+        }
+      }
+
+      if (action === 'Closed' || action === 'Created') {
+        await logChannel.threads.create({
+          name: `${action === 'Closed' ? '📂' : '🎫'}│${details.channelName || `ticket-${details.userId}`}`,
+          autoArchiveDuration: 1440,
+          reason: `Ticket event log for ${details.ticketId}`,
+          message: {
+            embeds: [embed],
+            files: files
+          }
+        }).catch(err => console.error('[Ticket Logs] Failed to create forum thread log:', err.message));
+      } else {
+        const modLogChannel = await client.channels.fetch('1512013682002104340').catch(() => null);
+        if (modLogChannel) {
+          await modLogChannel.send({ embeds: [embed] }).catch(() => {});
+        }
+      }
+    } else {
+      await logChannel.send({ embeds: [embed], files });
+    }
+  } catch (err) {
+    console.error('[Ticket Logs] Failed to send ticket log:', err.message);
+  }
+}
+
+// Helper to parse mentions or user IDs
+function parseUserId(input) {
+  if (!input) return null;
+  const matches = input.match(/^<@!?(\d+)>$/) || input.match(/^(\d+)$/);
+  return matches ? matches[1] : null;
+}
 
 /**
  * Returns the ticket entry whose channelId matches, or undefined.
@@ -45,15 +213,18 @@ function removeTicketByChannel(channelId) {
  */
 function buildTicketEmbed(userId, ticketId, claimedBy, staffMentions, clientUser) {
   const embed = new EmbedBuilder()
-    .setTitle('📋 Support Ticket Opened')
+    .setTitle('🎫 Psybot Support Portal')
     .setDescription(
-      `Hello <@${userId}>, welcome to your private support session.\n\n` +
-      `▪️ **Ticket ID:** \`${ticketId}\`\n` +
-      `▪️ **Status:** ${claimedBy ? `Claimed by <@${claimedBy}>` : '`Awaiting Staff`🔑'}\n\n` +
-      `*Please describe your issue or question in detail here. A representative will join and assist you shortly.*`
+      `╔══════════════════════════════════════════╗\n\n` +
+      `  **Welcome to your Support Ticket**\n\n` +
+      `  👤 **Opened By:** <@${userId}>\n` +
+      `  🎫 **Ticket ID:** \`${ticketId}\`\n` +
+      `  🛎️ **Status:** ${claimedBy ? `Claimed by <@${claimedBy}> 🟢` : '`Awaiting Staff` 🔴'}\n\n` +
+      `╚══════════════════════════════════════════╝\n\n` +
+      `Please describe your question or issue in detail below. Support representatives have been paged and will join shortly.`
     )
     .setColor('#ff3333')
-    .setFooter({ text: 'Psybot Support Services', iconURL: clientUser.displayAvatarURL() })
+    .setFooter({ text: 'Psybot Gaming Support', iconURL: clientUser.displayAvatarURL() })
     .setTimestamp();
 
   if (claimedBy) {
@@ -61,16 +232,6 @@ function buildTicketEmbed(userId, ticketId, claimedBy, staffMentions, clientUser
       { name: '🔴 Claimed By', value: `<@${claimedBy}>`, inline: true },
       { name: '⚫ Claim Time', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true },
     ]);
-  }
-
-  if (staffMentions && !claimedBy) {
-    embed.setDescription(
-      `Hello <@${userId}>, welcome to your private support session.\n\n` +
-      `▪️ **Ticket ID:** \`${ticketId}\`\n` +
-      `▪️ **Status:** \`Awaiting Staff\` 🔴\n\n` +
-      `*Please describe your issue or question in detail here. A representative will join and assist you shortly.*\n\n` +
-      `🔔 **Staff Paged:** ${staffMentions}`
-    );
   }
 
   return embed;
@@ -121,7 +282,7 @@ async function handleCreateTicket(interaction) {
   const userId      = interaction.user.id;
   const guild       = interaction.guild;
   const ticketId    = `${userId}-${Date.now()}`;
-  const channelName = `ticket-${userId}`;
+  const channelName = `ticket-${interaction.user.username}`;
 
   const permissionOverwrites = [
     { id: guild.id,     deny:  [PermissionFlagsBits.ViewChannel] },
@@ -141,8 +302,47 @@ async function handleCreateTicket(interaction) {
       permissionOverwrites,
     });
 
+    const forumChannelId = process.env.TICKET_LOG_CHANNEL_ID;
+    let forumThreadId = null;
+    if (forumChannelId) {
+      try {
+        const forumChannel = await guild.channels.fetch(forumChannelId).catch(() => null);
+        if (forumChannel && forumChannel.type === ChannelType.GuildForum) {
+          const thread = await forumChannel.threads.create({
+            name: `🎫│ticket-${interaction.user.username}`,
+            autoArchiveDuration: 1440,
+            reason: `Forum thread for tracking ticket ${ticketId}`,
+            message: {
+              embeds: [
+                new EmbedBuilder()
+                  .setTitle(`🎫 Ticket Tracked: ticket-${interaction.user.username}`)
+                  .setColor('#3498db')
+                  .setDescription(
+                    `This forum post tracks the live message activity for ticket channel: <#${ticketChannel.id}>\n\n` +
+                    `👤 **Opened By:** ${interaction.user} (ID: \`${userId}\`)\n` +
+                    `🎫 **Ticket ID:** \`${ticketId}\``
+                  )
+                  .setTimestamp()
+              ]
+            }
+          });
+          forumThreadId = thread.id;
+        }
+      } catch (forumErr) {
+        console.error('Failed to create forum thread tracking post:', forumErr.message);
+      }
+    }
+
+    // Save ticket data to database
     const tickets = readJsonFile(ticketsPath, {});
-    tickets[ticketId] = { ticketId, userId, channelId: ticketChannel.id, createdAt: new Date().toISOString(), claimedBy: null };
+    tickets[ticketId] = { 
+      ticketId, 
+      userId, 
+      channelId: ticketChannel.id, 
+      forumThreadId,
+      createdAt: new Date().toISOString(), 
+      claimedBy: null 
+    };
     writeJsonFile(ticketsPath, tickets);
 
     const staffMentions = [`<@&${MOD_ROLE_ID}>`, adminRoleId ? `<@&${adminRoleId}>` : null].filter(Boolean).join(' ');
@@ -155,7 +355,15 @@ async function handleCreateTicket(interaction) {
       allowedMentions: { roles: [MOD_ROLE_ID, adminRoleId].filter(Boolean) },
     });
 
-    await interaction.editReply({ content: `<:tick:1510274177486028860> Ticket created! <#${ticketChannel.id}>` });
+    // Send Created log entry
+    await logTicketAction(interaction.client, 'Created', {
+      ticketId,
+      userId,
+      channelId: ticketChannel.id,
+      executor: interaction.user
+    });
+
+    await interaction.editReply({ content: `✅ Ticket created! <#${ticketChannel.id}>` });
   } catch (err) {
     console.error('Error creating ticket:', err);
     await interaction.editReply({ content: '❌ Error creating ticket. Please try again.' }).catch(() => {});
@@ -175,7 +383,7 @@ async function handleClaimTicket(interaction) {
   }
 
   const tickets = readJsonFile(ticketsPath, {});
-  const ticketKey = Object.keys(tickets).find(k => tickets[k].channelId === interaction.channel.id);
+  const ticketKey = Object.keys(tickets).find(k => tickets[k].channelId === interaction.channel.id || tickets[k].forumThreadId === interaction.channel.id);
   const ticketEntry = ticketKey ? tickets[ticketKey] : null;
   if (!ticketEntry) {
     return interaction.reply({ content: '❌ This channel is not a valid ticket.', ephemeral: true });
@@ -202,8 +410,33 @@ async function handleClaimTicket(interaction) {
     `<@&${MOD_ROLE_ID}>${adminRoleId ? ` <@&${adminRoleId}>` : ''}`, interaction.client.user);
   await interaction.channel.send({ embeds: [embed], components: [buildTicketButtons(ticketEntry.claimedBy)] });
 
+  await logTicketAction(interaction.client, 'Claimed', {
+    ticketId: ticketEntry.ticketId,
+    userId: ticketEntry.userId,
+    channelId: interaction.channel.id,
+    executor: interaction.user
+  });
+
+  if (ticketEntry.forumThreadId) {
+    try {
+      const thread = await interaction.guild.channels.fetch(ticketEntry.forumThreadId).catch(() => null);
+      if (thread) {
+        await thread.send({
+          embeds: [
+            new EmbedBuilder()
+              .setDescription(`🛎️ **Claimed:** Support staff ${interaction.user} has claimed this ticket. Only they and the ticket owner can message now.`)
+              .setColor('#3498db')
+              .setTimestamp()
+          ]
+        });
+      }
+    } catch (err) {
+      console.error('Failed to notify forum thread on claim:', err.message);
+    }
+  }
+
   return interaction.reply({
-    content: `<:tick:1510274177486028860> Ticket claimed by ${interaction.user}. Only you and the ticket owner can send messages now.`,
+    content: `✅ Ticket claimed by ${interaction.user}. Only you and the ticket owner can send messages now.`,
     ephemeral: true,
   });
 }
@@ -227,8 +460,18 @@ async function handleCloseTicket(interaction) {
       return interaction.editReply({ content: '❌ This channel is not a ticket.' });
     }
 
+    await logTicketAction(interaction.client, 'Closed', {
+      ticketId: ticketEntry.ticketId,
+      userId: ticketEntry.userId,
+      channelName: interaction.channel.name,
+      forumThreadId: ticketEntry.forumThreadId,
+      executor: interaction.user,
+      channel: interaction.channel
+    });
+
     removeTicketByChannel(interaction.channel.id);
-    await interaction.editReply({ content: '<:tick:1510274177486028860> Ticket closed. Channel will be deleted in 5 seconds...' });
+
+    await interaction.editReply({ content: '✅ Ticket closed. Channel will be deleted in 5 seconds...' });
     setTimeout(() => {
       interaction.channel.delete('Ticket closed').catch(err => console.error('Error deleting closed ticket channel:', err));
     }, 5000);
@@ -312,18 +555,26 @@ async function handleTransferTicketModal(interaction) {
 
   await interaction.channel.permissionOverwrites.edit(targetMember.id, {
     ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
-  });
+  }).catch(() => {});
   if (interaction.user.id !== targetMember.id) {
     await interaction.channel.permissionOverwrites.edit(interaction.user.id, {
       SendMessages: false, ViewChannel: true, ReadMessageHistory: true,
     }).catch(() => {});
   }
 
-  await interaction.reply({ content: `<:tick:1510274177486028860> Ticket transferred to ${targetMember}.`, ephemeral: true });
+  await interaction.reply({ content: `✅ Ticket transferred to ${targetMember}.`, ephemeral: true });
   await interaction.channel.send({
     embeds: [buildTicketEmbed(ticketData.userId, ticketData.ticketId, ticketData.claimedBy,
       `<@&${MOD_ROLE_ID}>${adminRoleId ? ` <@&${adminRoleId}>` : ''}`, interaction.client.user)],
     components: [buildTicketButtons(ticketData.claimedBy)],
+  });
+
+  await logTicketAction(interaction.client, 'Transferred', {
+    ticketId: ticketData.ticketId,
+    userId: ticketData.userId,
+    channelId: interaction.channel.id,
+    executor: interaction.user,
+    extraInfo: `Transferred ownership of support session to ${targetMember}.`
   });
 }
 
@@ -349,8 +600,17 @@ async function handleAddUserModal(interaction) {
 
   await interaction.channel.permissionOverwrites.edit(targetMember.id, {
     ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+  }).catch(() => {});
+
+  await logTicketAction(interaction.client, 'User Added', {
+    ticketId: ticketEntry.ticketId,
+    userId: ticketEntry.userId,
+    channelId: interaction.channel.id,
+    executor: interaction.user,
+    extraInfo: `Granted ticket access channel permission to ${targetMember}.`
   });
-  return interaction.reply({ content: `<:tick:1510274177486028860> ${targetMember} was added to the ticket.`, ephemeral: true });
+
+  return interaction.reply({ content: `✅ ${targetMember} was added to the ticket.`, ephemeral: true });
 }
 
 module.exports = {
@@ -365,4 +625,5 @@ module.exports = {
   handleAddUserTicketButton,
   handleTransferTicketModal,
   handleAddUserModal,
+  logTicketAction,
 };

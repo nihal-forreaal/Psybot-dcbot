@@ -1,8 +1,8 @@
-﻿const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+'use strict';
+
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-
-const RR_CHANNEL_ID = '1510256263743934504';
 
 module.exports = {
   name: 'rrpanel',
@@ -16,7 +16,8 @@ module.exports = {
     }
 
     try {
-      const channel = await message.client.channels.fetch(RR_CHANNEL_ID);
+      const channelId = process.env.REACTION_ROLES_CHANNEL_ID || '1510256263743934504';
+      const channel = await message.client.channels.fetch(channelId).catch(() => null);
       if (!channel) {
         return message.reply('❌ Could not find the reaction roles channel!');
       }
@@ -49,7 +50,6 @@ module.exports = {
       for (let i = 0; i < rolesConfig.length; i++) {
         const roleData = rolesConfig[i];
         
-        // Map string style to Discord.js ButtonStyle enum
         let style = ButtonStyle.Primary;
         if (roleData.style === 'Secondary') style = ButtonStyle.Secondary;
         if (roleData.style === 'Success') style = ButtonStyle.Success;
@@ -66,7 +66,6 @@ module.exports = {
 
         currentRow.addComponents(button);
 
-        // A single ActionRow can hold up to 5 buttons
         if (currentRow.components.length === 5 || i === rolesConfig.length - 1) {
           components.push(currentRow);
           currentRow = new ActionRowBuilder();
@@ -74,7 +73,7 @@ module.exports = {
       }
 
       await channel.send({ embeds: [embed], components });
-      await message.reply(`<:tick:1510274177486028860> Reaction roles panel sent to <#${RR_CHANNEL_ID}>!`);
+      await message.reply(`✅ Reaction roles panel sent to <#${channelId}>!`);
     } catch (error) {
       console.error('Error sending rrpanel:', error);
       await message.reply('❌ An error occurred while sending the panel.');

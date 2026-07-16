@@ -1,55 +1,45 @@
+'use strict';
+
 const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
   name: 'help',
-  description: 'Lists all available commands',
+  description: 'Lists all available commands.',
   async execute(message) {
-    const prefix = process.env.PREFIX || '!';
-    const commands = message.client.commands;
+    try {
+      const prefix = process.env.PREFIX || ',';
+      const commands = message.client.commands;
 
-    if (commands.size === 0) {
-      return message.reply('❌ No commands available.');
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle('📚 Command List')
-      .setDescription(
-        `Use \`${prefix}<command>\` to run a command\n\n` +
-        `📍 **Current Channel ID:** \`${message.channel.id}\``
-      )
-      .setColor('#5865F2')
-      .setFooter({ text: 'Need more help? Join the support server!' });
-
-    let commandText = '';
-    const excludeCommands = ['kick', 'timeout', 'mute', 'deafen', 'defen', 'delete'];
-    commands.forEach(cmd => {
-      const desc = cmd.description || 'No description';
-      // Skip admin-only and excluded moderation commands from help panel
-      if (!desc.includes('admin only') && !excludeCommands.includes(cmd.name.toLowerCase())) {
-        commandText += `\`${prefix}${cmd.name}\` - ${desc}\n`;
+      if (commands.size === 0) {
+        return message.reply('❌ No commands available.');
       }
-    });
 
-    if (commandText.length > 1024) {
-      // Split into multiple fields if too long
-      let fields = [];
-      let currentField = '';
-      commandText.split('\n').forEach(line => {
-        if ((currentField + line).length > 1024) {
-          fields.push({ name: '\u200b', value: currentField.trim(), inline: false });
-          currentField = line + '\n';
-        } else {
-          currentField += line + '\n';
-        }
+      const embed = new EmbedBuilder()
+        .setTitle('🎮 Psybot Support & Help')
+        .setDescription(
+          `Welcome to the Psybot help console! Use \`${prefix}<command>\` to execute prefix commands.\n\n` +
+          `📍 **Current Channel:** <#${message.channel.id}>\n` +
+          `─────────────────────────────`
+        )
+        .setColor('#e74c3c')
+        .setFooter({ text: 'Psybot Help Manager', iconURL: message.client.user.displayAvatarURL() })
+        .setTimestamp();
+
+      // Filter unique command objects to avoid duplicates from aliases
+      const uniqueCommands = new Set(commands.values());
+      let commandText = '';
+
+      uniqueCommands.forEach(cmd => {
+        const desc = cmd.description || 'No description';
+        const aliasList = cmd.aliases && cmd.aliases.length > 0 ? ` (aliases: \`${cmd.aliases.map(a => prefix + a).join(', ')}\`)` : '';
+        commandText += `▪️ **\`${prefix}${cmd.name}\`**${aliasList}\n  └─ ${desc}\n\n`;
       });
-      if (currentField.trim()) {
-        fields.push({ name: '\u200b', value: currentField.trim(), inline: false });
-      }
-      embed.addFields(fields);
-    } else {
-      embed.addFields({ name: '**Commands:**', value: commandText || 'No commands', inline: false });
-    }
 
-    message.reply({ embeds: [embed] });
+      embed.addFields({ name: '⚡ Available Commands', value: commandText || 'No commands registered.' });
+
+      await message.reply({ embeds: [embed] });
+    } catch (err) {
+      console.error('Error executing help command:', err);
+    }
   }
 };

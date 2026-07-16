@@ -11,6 +11,12 @@ tunnel.url
 # Database files & state
 levels.json
 tickets.json
+temp_vcs.json
+deal_sent.flag
+
+# User data (runtime generated, do not commit)
+data/userStats.json
+
 
 # Log files
 *.log

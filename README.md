@@ -1,41 +1,28 @@
 # 🤖 Psybot
 
-Psybot is a feature-rich, high-performance, and premium Discord bot scaffolded with `discord.js` (v14). It features interactive gaming modules, a built-in AI assistant powered by Google Gemini/Gemma models, automatic support ticket management, a custom voice-channel controller, server moderation, and YouTube WebSub notifications.
+Psybot is a clean, minimal Discord bot scaffolded with `discord.js` (v14). It serves as a premium, lightweight starter template with dynamic command loading and structured event handlers.
 
 ---
 
 ## 🌟 Key Features
 
-### 1. 🎙️ Custom Voice Channel (VC) Panel (`!vcpanel`)
-* Allows temporary voice channel owners to manage their dynamic VC rooms from a premium visual interface.
-* **Controls:** Edit channel names, limit maximum voice members, assign co-owners, lock/unlock channels, whitelist specific users, block users, or kick/disconnect current voice members.
-
-### 2. 🎫 Support Ticket System (`!ticket`)
-* **Self-Service Support:** Interactive button panels allow users to open private support tickets.
-* **Ticket Actions:** Interactive buttons allow staff members to claim, transfer ownership, add users to the ticket channel, or close the ticket.
-
-### 3. 🛡️ Server Moderation (Prefix & Slash Commands)
-* Supports both traditional message commands and application-level slash commands.
-* Commands include: **Kick**, **Server Mute/Unmute**, **Server Deafen/Undeafen**, and **Timeout/Untimeout** (which parses standard timeframes).
-
-### 4. 📡 YouTube WebSub Notifications
-* Built-in server listener for YouTube WebSub (PubSubHubbub) hubs. Instantly posts announcements in Discord when new videos are published.
+* **Dynamic Command Loader**: Automatically loads prefix commands from the `commands/` directory.
+* **Structured Event Handlers**: Separates event logic into dedicated modules inside the `handlers/` directory.
+* **Modern Boilerplate**: Pre-configured with essential Discord gateway intents and partials.
 
 ---
 
 ## 🛠️ Installation & Setup
 
 ### Prerequisites
-* [Node.js](https://nodejs.org/) (v16.11.0 or higher recommended)
-* [npm](https://www.npmjs.com/) (usually bundled with Node.js)
-* A Discord Bot Token (created via the [Discord Developer Portal](https://discord.com/developers/applications))
+* [Node.js](https://nodejs.org/) (v20.0.0 or higher recommended)
+* [npm](https://www.npmjs.com/)
 
 ### Setup Instructions
 
-1. **Clone the repository:**
+1. **Clone or navigate to the repository:**
    ```bash
-   git clone <your-github-repo-url>
-   cd "Dc bot"
+   cd psybot-dcbot
    ```
 
 2. **Install dependencies:**
@@ -44,23 +31,11 @@ Psybot is a feature-rich, high-performance, and premium Discord bot scaffolded w
    ```
 
 3. **Configure Environment Variables:**
-   Rename `.env.example` to `.env` and fill out the configuration:
+   Rename `.env.example` to `.env` (or update your existing `.env` file) and fill out your Discord bot credentials:
    ```env
-# Core Bot Configuration
-   TOKEN=YOUR_DISCORD_BOT_TOKEN
-   PREFIX=!
-   ADMIN_ROLE_ID=YOUR_ADMIN_ROLE_ID
-   
-   # Ticket Configuration
-   TICKET_CATEGORY_ID=YOUR_TICKET_CATEGORY_ID
-   TICKET_PANEL_CHANNEL_ID=YOUR_TICKET_PANEL_CHANNEL_ID
-   
-   # YouTube WebSub Integration (Optional)
-   PUBLIC_URL=https://your-public-url.ngrok-free.app
-   YT_CHANNEL_ID=YOUR_YOUTUBE_CHANNEL_ID
-   DISCORD_ANNOUNCE_CHANNEL_ID=YOUR_DISCORD_YOUTUBE_CHANNEL_ID
-   YT_VERIFY_TOKEN=YOUR_CUSTOM_VERIFICATION_TOKEN
-   ```
+    TOKEN=YOUR_DISCORD_BOT_TOKEN
+    PREFIX=,
+    ```
 
 4. **Launch the Bot:**
    ```bash
@@ -69,31 +44,23 @@ Psybot is a feature-rich, high-performance, and premium Discord bot scaffolded w
 
 ---
 
-## 📄 Commands Directory
+## 📄 Command Directory
 
-Below is the directory of prefix commands (`!`) loaded dynamically from the `commands/` directory:
+Commands are loaded dynamically from the `commands/` directory.
 
-| Command | Category | Description | Permissions |
-| :--- | :--- | :--- | :--- |
-| `!rrpanel` | Roles | Send the interactive Reaction Roles panel. | Admin Role |
-| `!vcpanel` | Voice | Show VC management panel for your dynamic voice channel. | VC Creator |
-| `!ticket` | Tickets | Send the ticket system button panel. | Admin Role |
-| `!close` | Tickets | Close the current ticket channel. | Staff / Admin |
-| `!mute <@user>` | Moderation | Server mute/unmute a user in voice. | Mute Members / Admin |
-| `!deafen <@user>` | Moderation | Server deafen/undeafen a user in voice. | Deafen Members / Admin |
-| `!ping` | Utility | Replies with bot latency. | Everyone |
-| `!say <text>` | Utility | Bot repeats your message. | Everyone |
-| `!startlink <link> [chars] [int] [target]` | Utility | Broadcast randomized links at specific intervals. | Authorized IDs |
-| `!stoplink <target>` | Utility | Stop broadcast intervals for target link. | Authorized IDs |
-| `!sendlink <link> [chars] [int] [target]` | Utility | Broadcast randomized links at specific intervals (alias to `!startlink`). | Authorized IDs |
-| `!stopsendlink <target>` | Utility | Stop broadcast intervals for target link (alias to `!stoplink`). | Authorized IDs |
-| `!deleteall` | Utility | Clean up DM messages (DM only). | Developer ID |
+| Command | Description | Usage |
+| :--- | :--- | :--- |
+| `,ping` | Replies with bot latency / API ping. | `,ping` |
+| `,ticket` | Spawns the Support Ticket Portal panel (Admins/Moderators). | `,ticket` |
+| `,close` | Safely closes the active ticket channel (Admins/Moderators). | `,close` |
+| `,rrpanel` | Spawns the Auto Role panel. | `,rrpanel` |
+| `,vcpanel` | Spawns the Custom VC Panel for owner controls. | `,vcpanel` |
+| `/youtube` | Displays the official YouTube channel link (Slash command). | `/youtube` |
 
 ---
 
 ## 📝 File Structure
 
-* [index.js](file:///c:/Users/ahamm/Downloads/randm%20things/Dc%20bot/index.js) — Main entry point, sets up event listeners, command routers, slash registrations, and daily maintenance loops.
-* [youtube.js](file:///c:/Users/ahamm/Downloads/randm%20things/Dc%20bot/youtube.js) — YouTube WebSub notifier middleware server.
-* [commands/](file:///c:/Users/ahamm/Downloads/randm%20things/Dc%20bot/commands) — Dynamic command module loader directory.
-* `tickets.json` — Local flat-file database stores (automatically excluded via `.gitignore`).
+* [index.js](file:///C:/Users/ahamm/.gemini/antigravity-ide/scratch/psybot-dcbot/index.js) — Main entry point, sets up Client, loads command collections, and registers event handlers.
+* [commands/](file:///C:/Users/ahamm/.gemini/antigravity-ide/scratch/psybot-dcbot/commands) — Directory where prefix and slash commands are stored.
+* [handlers/](file:///C:/Users/ahamm/.gemini/antigravity-ide/scratch/psybot-dcbot/handlers) — Core event handlers (e.g., `messageCreate`, `interactionCreate`).

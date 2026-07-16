@@ -12,6 +12,7 @@ const path = require('path');
  */
 function readJsonFile(filePath, fallback) {
   try {
+    if (!fs.existsSync(filePath)) return fallback;
     const content = fs.readFileSync(filePath, 'utf8').trim();
     return content ? JSON.parse(content) : fallback;
   } catch (err) {
