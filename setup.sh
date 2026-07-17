@@ -24,14 +24,25 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null
 sudo apt-get install -y nodejs 2>/dev/null
 echo -e "${GREEN}Node.js $(node --version) installed ✓${NC}"
 
-# ── 3. Install git + pm2
-echo -e "${YELLOW}[3/7] Installing Git & PM2...${NC}"
+# ── 3. Install canvas system dependencies (required for @napi-rs/canvas on Linux)
+echo -e "${YELLOW}[3/7] Installing canvas system libraries...${NC}"
+sudo apt-get install -y \
+  build-essential \
+  libcairo2-dev \
+  libpango1.0-dev \
+  libjpeg-dev \
+  libgif-dev \
+  librsvg2-dev \
+  libpixman-1-dev 2>/dev/null
+echo -e "${GREEN}Canvas system libraries installed ✓${NC}"
+
+echo -e "${YELLOW}[4/8] Installing Git & PM2...${NC}"
 sudo apt-get install -y git 2>/dev/null
 sudo npm install -g pm2 -q
 echo -e "${GREEN}PM2 $(pm2 --version) installed ✓${NC}"
 
-# ── 4. Clone repo
-echo -e "${YELLOW}[4/7] Cloning Psybot from GitHub...${NC}"
+# ── 5. Clone repo
+echo -e "${YELLOW}[5/8] Cloning Psybot from GitHub...${NC}"
 cd ~
 if [ -d "Psybot-dcbot" ]; then
   echo "Folder exists, pulling latest..."
@@ -43,12 +54,12 @@ fi
 echo -e "${GREEN}Repository cloned ✓${NC}"
 
 # ── 5. Install npm packages
-echo -e "${YELLOW}[5/7] Installing npm packages...${NC}"
+echo -e "${YELLOW}[6/8] Installing npm packages (including canvas)...${NC}"
 npm install --production 2>/dev/null
 echo -e "${GREEN}Packages installed ✓${NC}"
 
 # ── 6. Create .env file
-echo -e "${YELLOW}[6/7] Setting up environment variables...${NC}"
+echo -e "${YELLOW}[7/8] Setting up environment variables...${NC}"
 echo ""
 echo -e "${CYAN}Please enter your bot credentials (from your .env file):${NC}"
 echo ""
@@ -76,7 +87,7 @@ EOF
 echo -e "${GREEN}.env file created ✓${NC}"
 
 # ── 7. Start with PM2
-echo -e "${YELLOW}[7/7] Starting Psybot with PM2...${NC}"
+echo -e "${YELLOW}[8/8] Starting Psybot with PM2...${NC}"
 pm2 delete psybot 2>/dev/null || true
 pm2 start index.js --name psybot
 pm2 save --force
