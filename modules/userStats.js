@@ -3,12 +3,19 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_FILE = path.join(__dirname, '..', 'data', 'userStats.json');
+const DATA_DIR  = path.join(__dirname, '..', 'data');
+const DATA_FILE = path.join(DATA_DIR, 'userStats.json');
+
+// Auto-create the data directory if it doesn't exist (e.g. fresh deploy)
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function readData() {
   try {
+    if (!fs.existsSync(DATA_FILE)) return {};
     return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
   } catch {
     return {};
@@ -42,24 +49,15 @@ function daysAgo(days) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
-/**
- * Track a message event for a user.
- */
 function trackMessage(guildId, userId, channelId) {
   const data = readData();
   const user = ensureUser(data, guildId, userId);
   user.messages.push({ channelId, t: Date.now() });
-
-  // Prune entries older than 15 days to keep file small
   const cutoff = daysAgo(15);
   user.messages = user.messages.filter(m => m.t > cutoff);
-
   writeData(data);
 }
 
-/**
- * Track voice channel join.
- */
 function trackVoiceJoin(guildId, userId, channelId) {
   const data = readData();
   const user = ensureUser(data, guildId, userId);
@@ -67,9 +65,6 @@ function trackVoiceJoin(guildId, userId, channelId) {
   writeData(data);
 }
 
-/**
- * Track voice channel leave and close session.
- */
 function trackVoiceLeave(guildId, userId, channelId) {
   const data = readData();
   const user = ensureUser(data, guildId, userId);
@@ -78,26 +73,18 @@ function trackVoiceLeave(guildId, userId, channelId) {
     const duration = Date.now() - session.start;
     user.voice.push({ channelId, start: session.start, end: Date.now(), duration });
     delete user.voiceSessions[channelId];
-
-    // Prune entries older than 15 days
     const cutoff = daysAgo(15);
     user.voice = user.voice.filter(v => v.end > cutoff);
-
     writeData(data);
   }
 }
 
-/**
- * Get aggregated stats for a user: message + voice totals for 1d / 7d / 14d windows.
- */
 function getStats(guildId, userId) {
   const data = readData();
   const user = (data[guildId] || {})[userId] || { messages: [], voice: [] };
-
   const windows = [1, 7, 14];
   const msgCounts = {};
   const vcHours = {};
-
   for (const d of windows) {
     const cutoff = daysAgo(d);
     msgCounts[d] = user.messages.filter(m => m.t > cutoff).length;
@@ -106,21 +93,13 @@ function getStats(guildId, userId) {
       .reduce((sum, v) => sum + Math.min(v.duration, v.end - cutoff), 0);
     vcHours[d] = msToHours(totalMs);
   }
-
   return { msgCounts, vcHours };
 }
 
-/**
- * Get message rank and voice rank for a user in the guild.
- * Returns { msgRank, vcRank, totalUsers }
- */
 function getRank(guildId, userId) {
   const data = readData();
   const guildData = data[guildId] || {};
-
   const cutoff14 = daysAgo(14);
-
-  // Score = 14d total messages / voice
   const scores = Object.entries(guildData).map(([uid, udata]) => {
     const msgs = (udata.messages || []).filter(m => m.t > cutoff14).length;
     const vc = (udata.voice || [])
@@ -128,25 +107,17 @@ function getRank(guildId, userId) {
       .reduce((s, v) => s + v.duration, 0);
     return { uid, msgs, vc };
   });
-
   scores.sort((a, b) => b.msgs - a.msgs);
   const msgRank = scores.findIndex(s => s.uid === userId) + 1 || scores.length + 1;
-
   scores.sort((a, b) => b.vc - a.vc);
   const vcRank = scores.findIndex(s => s.uid === userId) + 1 || scores.length + 1;
-
   return { msgRank, vcRank, totalUsers: scores.length };
 }
 
-/**
- * Get top 3 most active channels (by messages) and top 1 voice channel.
- */
 function getTopChannels(guildId, userId) {
   const data = readData();
   const user = (data[guildId] || {})[userId] || { messages: [], voice: [] };
   const cutoff = daysAgo(14);
-
-  // Message channels
   const msgMap = {};
   for (const m of user.messages.filter(x => x.t > cutoff)) {
     msgMap[m.channelId] = (msgMap[m.channelId] || 0) + 1;
@@ -155,8 +126,6 @@ function getTopChannels(guildId, userId) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
     .map(([channelId, count]) => ({ channelId, count, type: 'msg' }));
-
-  // Voice channels
   const vcMap = {};
   for (const v of user.voice.filter(x => x.end > cutoff)) {
     vcMap[v.channelId] = (vcMap[v.channelId] || 0) + v.duration;
@@ -165,13 +134,9 @@ function getTopChannels(guildId, userId) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 2)
     .map(([channelId, ms]) => ({ channelId, hours: msToHours(ms), type: 'vc' }));
-
   return { topMsg, topVc };
 }
 
-/**
- * Get daily message counts for last 14 days (for chart).
- */
 function getDailyMsgChart(guildId, userId) {
   const data = readData();
   const user = (data[guildId] || {})[userId] || { messages: [] };
@@ -184,9 +149,6 @@ function getDailyMsgChart(guildId, userId) {
   return days;
 }
 
-/**
- * Get daily voice hours for last 14 days (for chart).
- */
 function getDailyVcChart(guildId, userId) {
   const data = readData();
   const user = (data[guildId] || {})[userId] || { voice: [] };

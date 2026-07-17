@@ -1,0 +1,2 @@
+# This file keeps the data/ directory tracked in git.
+# userStats.json is gitignored but the folder must exist on the server.
