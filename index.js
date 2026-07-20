@@ -116,16 +116,12 @@ client.once('ready', async () => {
         }
       ]
     },
-    {
-      name: 'stats',
-      description: 'Shows server statistics',
-    }
   ];
 
-  // Register global slash commands (including /stats)
+  // Register global slash commands
   try {
     await client.application.commands.set(commandsToRegister);
-    console.log('[Slash Commands] Successfully registered global commands (youtube, log, stats).');
+    console.log('[Slash Commands] Successfully registered global commands (youtube, log).');
   } catch (err) {
     console.error('[Slash Commands] Error registering global commands:', err);
   }

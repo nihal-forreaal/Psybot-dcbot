@@ -18,28 +18,6 @@ function register(client) {
       const member = newState.member;
       if (!member) return;
 
-      // ── Track voice time stats ─────────────────────────────────────────────
-      try {
-        const { trackVoiceJoin, trackVoiceLeave } = require('../modules/userStats');
-        const guildId = (newState.guild || oldState.guild)?.id;
-        const userId  = member.id;
-        // User joined a channel
-        if (!oldState.channelId && newState.channelId) {
-          trackVoiceJoin(guildId, userId, newState.channelId);
-        }
-        // User left a channel
-        if (oldState.channelId && !newState.channelId) {
-          trackVoiceLeave(guildId, userId, oldState.channelId);
-        }
-        // User moved channels — close old, open new
-        if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-          trackVoiceLeave(guildId, userId, oldState.channelId);
-          trackVoiceJoin(guildId, userId, newState.channelId);
-        }
-      } catch (err) {
-        console.error('[UserStats] Failed to track voice state:', err.message);
-      }
-
       try {
         const cfg = getLogConfig();
         const modLogChannelId = cfg.muteLog || '1512013682002104340';

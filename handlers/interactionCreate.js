@@ -2,7 +2,7 @@
 
 const { 
   ModalBuilder, TextInputBuilder, TextInputStyle, 
-  ActionRowBuilder, PermissionFlagsBits 
+  ActionRowBuilder, PermissionFlagsBits, StringSelectMenuBuilder
 } = require('discord.js');
 const vcDatabase = require('../utils/vcDatabase');
 const { generateVcPanel } = require('../utils/vcPanelGenerator');
@@ -94,11 +94,6 @@ function register(client) {
         }
         if (interaction.commandName === 'log') {
           return await handleLogCommand(interaction);
-        }
-        if (interaction.commandName === 'stats') {
-          const { generateStatsEmbed } = require('../modules/stats');
-          const embed = generateStatsEmbed(interaction.guild);
-          return interaction.reply({ embeds: [embed] });
         }
       }
 

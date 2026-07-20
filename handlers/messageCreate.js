@@ -14,16 +14,6 @@ function register(client, commands, prefix = '!') {
     // Ignore bots
     if (message.author.bot) return;
 
-    // Track message stats for guild users
-    if (message.guild) {
-      try {
-        const { trackMessage } = require('../modules/userStats');
-        trackMessage(message.guild.id, message.author.id, message.channel.id);
-      } catch (err) {
-        console.error('[UserStats] Failed to track message:', err.message);
-      }
-    }
-
     // Direct message logs or debugging output
     if (!message.guild) {
       console.log(`[DM] ${message.author.tag}: ${message.content}`);

@@ -15,28 +15,16 @@ echo "=================================================="
 echo -e "${NC}"
 
 # ── 1. Update system
-echo -e "${YELLOW}[1/7] Updating system...${NC}"
+echo -e "${YELLOW}[1/6] Updating system...${NC}"
 sudo apt-get update -y && sudo apt-get upgrade -y -q
 
 # ── 2. Install Node.js 20
-echo -e "${YELLOW}[2/7] Installing Node.js 20...${NC}"
+echo -e "${YELLOW}[2/6] Installing Node.js 20...${NC}"
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null
 sudo apt-get install -y nodejs 2>/dev/null
 echo -e "${GREEN}Node.js $(node --version) installed ✓${NC}"
 
-# ── 3. Install canvas system dependencies (required for @napi-rs/canvas on Linux)
-echo -e "${YELLOW}[3/7] Installing canvas system libraries...${NC}"
-sudo apt-get install -y \
-  build-essential \
-  libcairo2-dev \
-  libpango1.0-dev \
-  libjpeg-dev \
-  libgif-dev \
-  librsvg2-dev \
-  libpixman-1-dev 2>/dev/null
-echo -e "${GREEN}Canvas system libraries installed ✓${NC}"
-
-echo -e "${YELLOW}[4/8] Installing Git & PM2...${NC}"
+echo -e "${YELLOW}[3/6] Installing Git & PM2...${NC}"
 sudo apt-get install -y git 2>/dev/null
 sudo npm install -g pm2 -q
 echo -e "${GREEN}PM2 $(pm2 --version) installed ✓${NC}"
@@ -53,13 +41,13 @@ else
 fi
 echo -e "${GREEN}Repository cloned ✓${NC}"
 
-# ── 5. Install npm packages
-echo -e "${YELLOW}[6/8] Installing npm packages (including canvas)...${NC}"
+# ── 4. Install npm packages
+echo -e "${YELLOW}[4/6] Installing npm packages...${NC}"
 npm install --production 2>/dev/null
 echo -e "${GREEN}Packages installed ✓${NC}"
 
 # ── 6. Create .env file
-echo -e "${YELLOW}[7/8] Setting up environment variables...${NC}"
+echo -e "${YELLOW}[5/6] Setting up environment variables...${NC}"
 echo ""
 echo -e "${CYAN}Please enter your bot credentials (from your .env file):${NC}"
 echo ""
@@ -71,8 +59,6 @@ read -p "  TICKET_CATEGORY_ID: " TICKET_CATEGORY_ID
 read -p "  FORUM_LOG_CHANNEL_ID: " FORUM_LOG_CHANNEL_ID
 read -p "  JOIN_TO_CREATE_CHANNEL_ID: " JOIN_TO_CREATE_CHANNEL_ID
 read -p "  MEMBER_LOG_CHANNEL_ID (optional): " MEMBER_LOG_CHANNEL_ID
-read -p "  STATCACHE_INTERVAL (default: 300): " STATCACHE_INTERVAL
-STATCACHE_INTERVAL=${STATCACHE_INTERVAL:-300}
 
 cat > .env << EOF
 TOKEN=${BOT_TOKEN}
@@ -81,13 +67,12 @@ TICKET_CATEGORY_ID=${TICKET_CATEGORY_ID}
 FORUM_LOG_CHANNEL_ID=${FORUM_LOG_CHANNEL_ID}
 JOIN_TO_CREATE_CHANNEL_ID=${JOIN_TO_CREATE_CHANNEL_ID}
 MEMBER_LOG_CHANNEL_ID=${MEMBER_LOG_CHANNEL_ID}
-STATCACHE_INTERVAL=${STATCACHE_INTERVAL}
 EOF
 
 echo -e "${GREEN}.env file created ✓${NC}"
 
-# ── 7. Start with PM2
-echo -e "${YELLOW}[8/8] Starting Psybot with PM2...${NC}"
+# ── 6. Start with PM2
+echo -e "${YELLOW}[6/6] Starting Psybot with PM2...${NC}"
 pm2 delete psybot 2>/dev/null || true
 pm2 start index.js --name psybot
 pm2 save --force
