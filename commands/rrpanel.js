@@ -12,7 +12,7 @@ module.exports = {
     const adminRoleId = process.env.ADMIN_ROLE_ID;
     const isAdmin = message.member.permissions.has('Administrator') || (adminRoleId && message.member.roles.cache.has(adminRoleId));
     if (!isAdmin) {
-      return message.reply({ content: '❌ You do not have permission to use this command.', ephemeral: true });
+      return message.reply('❌ You do not have permission to use this command.');
     }
 
     try {
