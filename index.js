@@ -202,3 +202,16 @@ process.once('SIGTERM', () => process.exit(0));
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 client.login(process.env.TOKEN);
+
+// ── Dummy Web Server for Hosting ──────────────────────────────────────────────
+// Hosting platforms like Render or Railway (Web Services) wait for a port to be bound.
+// This dummy server listens on the PORT environment variable to satisfy that requirement,
+// preventing long upload/deploy times and timeouts.
+const http = require('http');
+const port = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Psybot is running!\n');
+}).listen(port, () => {
+  console.log(`[Hosting] Dummy web server listening on port ${port}`);
+});
